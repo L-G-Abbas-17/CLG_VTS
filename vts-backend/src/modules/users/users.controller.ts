@@ -7,11 +7,14 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { CurrentUser } from '../../common/auth/current-user.decorator'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
 import { UpdateUserStatusDto } from './dto/update-user-status.dto'
+import { Roles } from '../../common/guards/roles.decorator'
+import { RolesGuard } from '../../common/guards/roles.guard'
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
 @Controller('users')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 

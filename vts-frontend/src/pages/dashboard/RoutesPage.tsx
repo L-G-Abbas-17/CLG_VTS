@@ -6,10 +6,16 @@ import { RouteForm } from '@components/routes/RouteForm'
 import { RoutesTable } from '@components/routes/RoutesTable'
 import { routeService } from '@services/routeService'
 import { vehicleService } from '@services/vehicleService'
+import { useAuthStore } from '@store/authStore'
+import { canCreate, canDelete, canEdit } from '@utils/permissions'
 import type { Route } from '../../types/route'
 import type { Vehicle } from '../../types/vehicle'
 
 export function RoutesPage() {
+  const role = useAuthStore((state) => state.role)
+  const canCreateRoute = canCreate(role)
+  const canEditRoute = canEdit(role)
+  const canDeleteRoute = canDelete(role)
   const [routes, setRoutes] = useState<Route[]>([])
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -46,14 +52,16 @@ export function RoutesPage() {
             <p className='text-sm text-slate-600 dark:text-slate-300'>Manage route definitions and assigned vehicles</p>
           </div>
 
-          <button
-            type='button'
-            onClick={() => setIsCreateModalOpen(true)}
-            className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
-          >
-            <FiPlus size={16} />
-            Create Route
-          </button>
+          {canCreateRoute ? (
+            <button
+              type='button'
+              onClick={() => setIsCreateModalOpen(true)}
+              className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
+            >
+              <FiPlus size={16} />
+              Create Route
+            </button>
+          ) : null}
         </div>
 
         <div className='mt-3'>
@@ -75,26 +83,26 @@ export function RoutesPage() {
           routes={routes}
           vehicles={vehicles}
           searchTerm={searchTerm}
-          onAssign={async (vehicleId, routeId) => {
+          onAssign={canEditRoute ? async (vehicleId, routeId) => {
             await vehicleService.updateVehicleRoute(vehicleId, routeId)
             await loadRoutes()
-          }}
-          onRemove={async (vehicleId) => {
+          } : undefined}
+          onRemove={canEditRoute ? async (vehicleId) => {
             await vehicleService.updateVehicleRoute(vehicleId, null)
             await loadRoutes()
-          }}
-          onEdit={(route) => {
+          } : undefined}
+          onEdit={canEditRoute ? (route) => {
             setSelectedRoute(route)
             setIsEditModalOpen(true)
-          }}
-          onDelete={(route) => {
+          } : undefined}
+          onDelete={canDeleteRoute ? (route) => {
             setSelectedRoute(route)
             setIsDeleteDialogOpen(true)
-          }}
+          } : undefined}
         />
       )}
 
-      {isCreateModalOpen ? (
+      {canCreateRoute && isCreateModalOpen ? (
         <div className='fixed inset-0 z-40 flex items-center justify-center bg-slate-950/55 p-4'>
           <div className='relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/30 bg-white p-2 shadow-2xl dark:border-slate-700 dark:bg-[#1e293b]'>
             <button
@@ -117,29 +125,33 @@ export function RoutesPage() {
         </div>
       ) : null}
 
-      <EditRouteModal
-        route={selectedRoute}
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false)
-          setSelectedRoute(null)
-        }}
-        onSuccess={loadRoutes}
-      />
+      {canEditRoute ? (
+        <EditRouteModal
+          route={selectedRoute}
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false)
+            setSelectedRoute(null)
+          }}
+          onSuccess={loadRoutes}
+        />
+      ) : null}
 
-      <DeleteRouteDialog
-        route={selectedRoute}
-        isOpen={isDeleteDialogOpen}
-        onClose={() => {
-          setIsDeleteDialogOpen(false)
-          setSelectedRoute(null)
-        }}
-        onSuccess={async () => {
-          await loadRoutes()
-          setIsDeleteDialogOpen(false)
-          setSelectedRoute(null)
-        }}
-      />
+      {canDeleteRoute ? (
+        <DeleteRouteDialog
+          route={selectedRoute}
+          isOpen={isDeleteDialogOpen}
+          onClose={() => {
+            setIsDeleteDialogOpen(false)
+            setSelectedRoute(null)
+          }}
+          onSuccess={async () => {
+            await loadRoutes()
+            setIsDeleteDialogOpen(false)
+            setSelectedRoute(null)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

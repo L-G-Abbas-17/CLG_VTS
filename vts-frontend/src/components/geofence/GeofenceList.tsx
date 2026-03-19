@@ -27,6 +27,7 @@ export function GeofenceList({
   const [sortKey, setSortKey] = useState<SortKey>('createdAt')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [currentPage, setCurrentPage] = useState(1)
+  const showActions = Boolean(onEdit || onDelete)
 
   const filteredGeofences = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -136,7 +137,7 @@ export function GeofenceList({
                 </button>
               </th>
               <th className='px-3 py-2 font-semibold'>Map Preview</th>
-              <th className='px-3 py-2 text-right font-semibold'>Actions</th>
+              {showActions ? <th className='px-3 py-2 text-right font-semibold'>Actions</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -162,37 +163,43 @@ export function GeofenceList({
                   <td className='px-3 py-3'>
                     <GeofenceMapPreview lat={geofence.lat} lon={geofence.lon} radius={geofence.radius} />
                   </td>
-                  <td className='px-3 py-3 text-right'>
-                    <div className='flex items-center justify-end gap-2'>
-                      <button
-                        type='button'
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onEdit?.(geofence)
-                        }}
-                        className='inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:border-blue-600 hover:text-blue-600 dark:border-slate-600 dark:text-slate-100 dark:hover:border-[#38bdf8] dark:hover:text-[#38bdf8]'
-                      >
-                        <FiEdit size={14} />
-                        Edit
-                      </button>
-                      <button
-                        type='button'
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onDelete?.(geofence)
-                        }}
-                        className='inline-flex items-center gap-1 rounded-lg border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-700 transition hover:border-rose-500 hover:text-rose-600 dark:border-rose-500/60 dark:text-rose-300 dark:hover:border-rose-400 dark:hover:text-rose-200'
-                      >
-                        <FiTrash2 size={14} />
-                        Delete
-                      </button>
-                    </div>
-                  </td>
+                  {showActions ? (
+                    <td className='px-3 py-3 text-right'>
+                      <div className='flex items-center justify-end gap-2'>
+                        {onEdit ? (
+                          <button
+                            type='button'
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              onEdit(geofence)
+                            }}
+                            className='inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:border-blue-600 hover:text-blue-600 dark:border-slate-600 dark:text-slate-100 dark:hover:border-[#38bdf8] dark:hover:text-[#38bdf8]'
+                          >
+                            <FiEdit size={14} />
+                            Edit
+                          </button>
+                        ) : null}
+                        {onDelete ? (
+                          <button
+                            type='button'
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              onDelete(geofence)
+                            }}
+                            className='inline-flex items-center gap-1 rounded-lg border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-700 transition hover:border-rose-500 hover:text-rose-600 dark:border-rose-500/60 dark:text-rose-300 dark:hover:border-rose-400 dark:hover:text-rose-200'
+                          >
+                            <FiTrash2 size={14} />
+                            Delete
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} className='px-3 py-6 text-center text-sm text-slate-600 dark:text-slate-300'>
+                <td colSpan={showActions ? 6 : 5} className='px-3 py-6 text-center text-sm text-slate-600 dark:text-slate-300'>
                   No geofences match the current search.
                 </td>
               </tr>

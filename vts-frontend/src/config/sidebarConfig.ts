@@ -1,4 +1,17 @@
-export const sidebarSections = [
+import type { AppPage } from '@utils/permissions'
+
+type SidebarItem = {
+  label: string
+  icon: string
+  route: AppPage
+}
+
+type SidebarSection = {
+  title: string
+  items: SidebarItem[]
+}
+
+export const sidebarSections: SidebarSection[] = [
   {
     title: 'Dashboard',
     items: [

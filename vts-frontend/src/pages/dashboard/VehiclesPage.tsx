@@ -4,11 +4,15 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AddVehicleModal } from '@components/vehicles/AddVehicleModal'
 import { VehicleCard } from '@components/vehicles/VehicleCard'
 import { vehicleService } from '@services/vehicleService'
+import { useAuthStore } from '@store/authStore'
+import { canCreate } from '@utils/permissions'
 import type { Vehicle, VehicleStatus } from '../../types/vehicle'
 
 const statusOptions: Array<'all' | VehicleStatus> = ['all', 'moving', 'idling', 'stopped', 'offline']
 
 export function VehiclesPage() {
+  const role = useAuthStore((state) => state.role)
+  const canCreateVehicle = canCreate(role)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -68,14 +72,16 @@ export function VehiclesPage() {
             <p className='text-sm text-slate-600 dark:text-slate-300'>Real-time status updates from connected vehicle devices.</p>
           </div>
 
-          <button
-            type='button'
-            onClick={() => setIsAddModalOpen(true)}
-            className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
-          >
-            <FiPlus size={16} />
-            Add Vehicle
-          </button>
+          {canCreateVehicle ? (
+            <button
+              type='button'
+              onClick={() => setIsAddModalOpen(true)}
+              className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
+            >
+              <FiPlus size={16} />
+              Add Vehicle
+            </button>
+          ) : null}
         </div>
         <div className='mt-4 flex flex-col gap-3 md:flex-row md:items-center'>
           <input
@@ -130,11 +136,13 @@ export function VehiclesPage() {
         </div>
       )}
 
-      <AddVehicleModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSuccess={loadVehicles}
-      />
+      {canCreateVehicle ? (
+        <AddVehicleModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onSuccess={loadVehicles}
+        />
+      ) : null}
     </div>
   )
 }

@@ -20,6 +20,7 @@ import { WebsocketModule } from './websocket/websocket.module'
 import { TemporalModule } from './temporal/temporal.module'
 import { CollegeScopeMiddleware } from './common/tenant/college-scope.middleware'
 import { CollegesModule } from './modules/colleges/colleges.module'
+import { RolesGuard } from './common/guards/roles.guard'
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { CollegesModule } from './modules/colleges/colleges.module'
     WebsocketModule,
     TemporalModule,
   ],
+  providers: [RolesGuard],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

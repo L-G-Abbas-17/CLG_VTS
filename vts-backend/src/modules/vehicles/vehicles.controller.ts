@@ -8,11 +8,13 @@ import { TripsService } from '../trips/trips.service'
 import { TelemetryService } from '../telemetry/telemetry.service'
 import { CurrentUser } from '../../common/auth/current-user.decorator'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
+import { Roles } from '../../common/guards/roles.decorator'
+import { RolesGuard } from '../../common/guards/roles.guard'
 
 @ApiTags('Vehicles')
 @ApiBearerAuth('access-token')
 @Controller('vehicles')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class VehiclesController {
   constructor(
     private readonly vehiclesService: VehiclesService,
@@ -50,6 +52,7 @@ export class VehiclesController {
 
   @ApiOperation({ summary: 'Get vehicle telemetry' })
   @ApiResponse({ status: 200 })
+  @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Get(':vehicleId/telemetry')
   async telemetry(@Param('vehicleId') vehicleId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.telemetryService.getByVehicle(vehicleId, user)
@@ -57,6 +60,7 @@ export class VehiclesController {
 
   @ApiOperation({ summary: 'Create vehicle' })
   @ApiResponse({ status: 200 })
+  @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Post()
   async create(@Body() payload: CreateVehicleDto, @CurrentUser() user: AuthenticatedUser) {
     const vehicle = await this.vehiclesService.create(payload, user)
@@ -65,6 +69,7 @@ export class VehiclesController {
 
   @ApiOperation({ summary: 'Update vehicle' })
   @ApiResponse({ status: 200 })
+  @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Put(':vehicleId')
   async update(@Param('vehicleId') vehicleId: string, @Body() payload: UpdateVehicleDto, @CurrentUser() user: AuthenticatedUser) {
     const vehicle = await this.vehiclesService.update(vehicleId, payload, user)
@@ -73,6 +78,7 @@ export class VehiclesController {
 
   @ApiOperation({ summary: 'Patch vehicle' })
   @ApiResponse({ status: 200 })
+  @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Patch(':vehicleId')
   async patch(@Param('vehicleId') vehicleId: string, @Body() payload: UpdateVehicleDto, @CurrentUser() user: AuthenticatedUser) {
     const vehicle = await this.vehiclesService.update(vehicleId, payload, user)
@@ -81,6 +87,7 @@ export class VehiclesController {
 
   @ApiOperation({ summary: 'Delete vehicle' })
   @ApiResponse({ status: 200 })
+  @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Delete(':vehicleId')
   async remove(@Param('vehicleId') vehicleId: string, @CurrentUser() user: AuthenticatedUser) {
     await this.vehiclesService.remove(vehicleId, user)

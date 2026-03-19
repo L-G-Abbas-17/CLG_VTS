@@ -7,11 +7,14 @@ import { AssignDeviceDto } from './dto/assign-device.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { CurrentUser } from '../../common/auth/current-user.decorator'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
+import { Roles } from '../../common/guards/roles.decorator'
+import { RolesGuard } from '../../common/guards/roles.guard'
 
 @ApiTags('Devices')
 @ApiBearerAuth('access-token')
 @Controller('devices')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
 export class DevicesController {
   constructor(private readonly devicesService: DevicesService) {}
 

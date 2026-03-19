@@ -6,16 +6,19 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { CreateTelemetryDto } from './dto/create-telemetry.dto'
 import { CurrentUser } from '../../common/auth/current-user.decorator'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
+import { Roles } from '../../common/guards/roles.decorator'
+import { RolesGuard } from '../../common/guards/roles.guard'
 
 @ApiTags('Telemetry')
 @Controller('telemetry')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
 export class TelemetryController {
   constructor(private readonly telemetryService: TelemetryService) {}
 
   @ApiOperation({ summary: 'List telemetry' })
   @ApiResponse({ status: 200 })
   @ApiBearerAuth('access-token')
-  @UseGuards(JwtAuthGuard)
   @Get()
   async list(@CurrentUser() user: AuthenticatedUser, @Query() filters: TelemetryFilterDto) {
     return this.telemetryService.list(user, filters)
@@ -23,6 +26,7 @@ export class TelemetryController {
 
   @ApiOperation({ summary: 'Ingest telemetry (HTTP)' })
   @ApiResponse({ status: 201 })
+  @ApiBearerAuth('access-token')
   @Post()
   async ingest(@Body() payload: CreateTelemetryDto) {
     return this.telemetryService.ingest(payload)

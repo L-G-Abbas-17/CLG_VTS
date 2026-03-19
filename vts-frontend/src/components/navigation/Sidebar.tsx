@@ -2,6 +2,7 @@ import { sidebarSections } from '@config/sidebarConfig'
 import { SidebarSection } from './SidebarSection'
 import { useAuthStore } from '@store/authStore'
 import { iconMap } from '@utils/iconMap'
+import { canAccessPage } from '@utils/permissions'
 import { useLocation } from 'react-router-dom'
 import { FiMenu } from 'react-icons/fi'
 
@@ -13,6 +14,12 @@ type SidebarProps = {
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const role = useAuthStore((state) => state.role)
   const location = useLocation()
+  const visibleSections = sidebarSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => canAccessPage(role, item.route)),
+    }))
+    .filter((section) => section.items.length > 0)
 
   return (
     <aside
@@ -42,7 +49,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
       <nav className={`h-[calc(100%-4rem)] overflow-y-auto py-4 ${isCollapsed ? 'px-3' : 'px-4'}`}>
         <div className='space-y-6 '>
-          {sidebarSections.map((section) => (
+          {visibleSections.map((section) => (
             <SidebarSection
               key={section.title}
               title={section.title}

@@ -6,11 +6,13 @@ import { UpdateRouteDto } from './dto/update-route.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { CurrentUser } from '../../common/auth/current-user.decorator'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
+import { Roles } from '../../common/guards/roles.decorator'
+import { RolesGuard } from '../../common/guards/roles.guard'
 
 @ApiTags('Routes')
 @ApiBearerAuth('access-token')
 @Controller('routes')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class RoutesController {
   constructor(private readonly routesService: RoutesService) {}
 
@@ -37,6 +39,7 @@ export class RoutesController {
 
   @ApiOperation({ summary: 'Create route' })
   @ApiResponse({ status: 200 })
+  @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Post()
   async create(@Body() payload: CreateRouteDto, @CurrentUser() user: AuthenticatedUser) {
     const route = await this.routesService.create(payload, user)
@@ -45,6 +48,7 @@ export class RoutesController {
 
   @ApiOperation({ summary: 'Update route' })
   @ApiResponse({ status: 200 })
+  @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Patch(':routeId')
   async update(@Param('routeId') routeId: string, @Body() payload: UpdateRouteDto, @CurrentUser() user: AuthenticatedUser) {
     const route = await this.routesService.update(routeId, payload, user)
@@ -53,6 +57,7 @@ export class RoutesController {
 
   @ApiOperation({ summary: 'Delete route' })
   @ApiResponse({ status: 200 })
+  @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Delete(':routeId')
   async remove(@Param('routeId') routeId: string, @CurrentUser() user: AuthenticatedUser) {
     await this.routesService.remove(routeId, user)

@@ -11,6 +11,8 @@ import { VehicleInfoCard } from '@components/vehicles/VehicleInfoCard'
 import { VehicleMap } from '@components/map/VehicleMap'
 import { vehicleService } from '@services/vehicleService'
 import { routeService } from '@services/routeService'
+import { useAuthStore } from '@store/authStore'
+import { canDelete, canEdit } from '@utils/permissions'
 import type { Trip, Vehicle } from '../../types/vehicle'
 
 type DetailTab = 'trips' | 'telemetry' | 'history' | 'events'
@@ -18,6 +20,10 @@ type DetailTab = 'trips' | 'telemetry' | 'history' | 'events'
 export function VehicleDetailPage() {
   const { vehicleId = '' } = useParams()
   const navigate = useNavigate()
+  const role = useAuthStore((state) => state.role)
+  const canEditVehicle = canEdit(role)
+  const canDeleteVehicle = canDelete(role)
+  const canViewTelemetry = role !== 'STUDENT'
 
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
   const [trips, setTrips] = useState<Trip[]>([])
@@ -84,22 +90,26 @@ export function VehicleDetailPage() {
             <p className='rounded-lg border border-slate-200 bg-white/70 px-3 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200'>
               Route: {routeName}
             </p>
-            <button
-              type='button'
-              onClick={() => setIsEditOpen(true)}
-              className='inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-blue-600 hover:text-blue-600 dark:border-slate-600 dark:text-slate-100 dark:hover:border-[#38bdf8] dark:hover:text-[#38bdf8]'
-            >
-              <FiEdit size={14} />
-              Edit
-            </button>
-            <button
-              type='button'
-              onClick={() => setIsDeleteOpen(true)}
-              className='inline-flex items-center gap-2 rounded-lg border border-rose-300 px-3 py-1.5 text-sm font-medium text-rose-700 transition hover:border-rose-500 hover:text-rose-600 dark:border-rose-500/60 dark:text-rose-300 dark:hover:border-rose-400 dark:hover:text-rose-200'
-            >
-              <FiTrash2 size={14} />
-              Delete
-            </button>
+            {canEditVehicle ? (
+              <button
+                type='button'
+                onClick={() => setIsEditOpen(true)}
+                className='inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-blue-600 hover:text-blue-600 dark:border-slate-600 dark:text-slate-100 dark:hover:border-[#38bdf8] dark:hover:text-[#38bdf8]'
+              >
+                <FiEdit size={14} />
+                Edit
+              </button>
+            ) : null}
+            {canDeleteVehicle ? (
+              <button
+                type='button'
+                onClick={() => setIsDeleteOpen(true)}
+                className='inline-flex items-center gap-2 rounded-lg border border-rose-300 px-3 py-1.5 text-sm font-medium text-rose-700 transition hover:border-rose-500 hover:text-rose-600 dark:border-rose-500/60 dark:text-rose-300 dark:hover:border-rose-400 dark:hover:text-rose-200'
+              >
+                <FiTrash2 size={14} />
+                Delete
+              </button>
+            ) : null}
             <Link
               to='/vehicles'
               className='rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:border-blue-600 hover:text-blue-600 dark:border-slate-600 dark:text-slate-100 dark:hover:border-[#38bdf8] dark:hover:text-[#38bdf8]'
@@ -171,28 +181,32 @@ export function VehicleDetailPage() {
               >
                 Trips
               </button>
-              <button
-                type='button'
-                onClick={() => setActiveTab('telemetry')}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  activeTab === 'telemetry'
-                    ? 'bg-blue-600 text-white dark:bg-[#38bdf8] dark:text-slate-950'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                Telemetry
-              </button>
-              <button
-                type='button'
-                onClick={() => setActiveTab('history')}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  activeTab === 'history'
-                    ? 'bg-blue-600 text-white dark:bg-[#38bdf8] dark:text-slate-950'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                History
-              </button>
+              {canViewTelemetry ? (
+                <button
+                  type='button'
+                  onClick={() => setActiveTab('telemetry')}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                    activeTab === 'telemetry'
+                      ? 'bg-blue-600 text-white dark:bg-[#38bdf8] dark:text-slate-950'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  Telemetry
+                </button>
+              ) : null}
+              {canViewTelemetry ? (
+                <button
+                  type='button'
+                  onClick={() => setActiveTab('history')}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                    activeTab === 'history'
+                      ? 'bg-blue-600 text-white dark:bg-[#38bdf8] dark:text-slate-950'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  History
+                </button>
+              ) : null}
               <button
                 type='button'
                 onClick={() => setActiveTab('events')}
@@ -207,8 +221,8 @@ export function VehicleDetailPage() {
             </div>
 
             {activeTab === 'trips' ? <TripHistoryTable vehicleId={vehicleId} /> : null}
-            {activeTab === 'telemetry' ? <TelemetryTable vehicleId={vehicleId} /> : null}
-            {activeTab === 'history' ? <HistoryTable vehicleId={vehicleId} /> : null}
+            {activeTab === 'telemetry' && canViewTelemetry ? <TelemetryTable vehicleId={vehicleId} /> : null}
+            {activeTab === 'history' && canViewTelemetry ? <HistoryTable vehicleId={vehicleId} /> : null}
             {activeTab === 'events' ? <VehicleEventsTable vehicleId={vehicleId} /> : null}
           </section>
         </>
@@ -218,19 +232,23 @@ export function VehicleDetailPage() {
         </div>
       )}
 
-      <EditVehicleModal
-        vehicle={vehicle}
-        isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
-        onSuccess={loadVehicle}
-      />
+      {canEditVehicle ? (
+        <EditVehicleModal
+          vehicle={vehicle}
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          onSuccess={loadVehicle}
+        />
+      ) : null}
 
-      <DeleteVehicleDialog
-        isOpen={isDeleteOpen}
-        vehicle={vehicle}
-        onClose={() => setIsDeleteOpen(false)}
-        onSuccess={() => navigate('/vehicles')}
-      />
+      {canDeleteVehicle ? (
+        <DeleteVehicleDialog
+          isOpen={isDeleteOpen}
+          vehicle={vehicle}
+          onClose={() => setIsDeleteOpen(false)}
+          onSuccess={() => navigate('/vehicles')}
+        />
+      ) : null}
     </div>
   )
 }

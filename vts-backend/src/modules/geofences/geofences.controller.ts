@@ -6,11 +6,13 @@ import { UpdateGeofenceDto } from './dto/update-geofence.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { CurrentUser } from '../../common/auth/current-user.decorator'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
+import { Roles } from '../../common/guards/roles.decorator'
+import { RolesGuard } from '../../common/guards/roles.guard'
 
 @ApiTags('Geofences')
 @ApiBearerAuth('access-token')
 @Controller('geofences')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class GeofencesController {
   constructor(private readonly geofencesService: GeofencesService) {}
 
@@ -30,6 +32,7 @@ export class GeofencesController {
 
   @ApiOperation({ summary: 'Create geofence' })
   @ApiResponse({ status: 200 })
+  @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Post()
   async create(@Body() payload: CreateGeofenceDto, @CurrentUser() user: AuthenticatedUser) {
     const geofence = await this.geofencesService.create(payload, user)
@@ -38,6 +41,7 @@ export class GeofencesController {
 
   @ApiOperation({ summary: 'Update geofence' })
   @ApiResponse({ status: 200 })
+  @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Put(':geofenceId')
   async update(@Param('geofenceId') geofenceId: string, @Body() payload: UpdateGeofenceDto, @CurrentUser() user: AuthenticatedUser) {
     const geofence = await this.geofencesService.update(geofenceId, payload, user)
@@ -46,6 +50,7 @@ export class GeofencesController {
 
   @ApiOperation({ summary: 'Delete geofence' })
   @ApiResponse({ status: 200 })
+  @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Delete(':geofenceId')
   async remove(@Param('geofenceId') geofenceId: string, @CurrentUser() user: AuthenticatedUser) {
     await this.geofencesService.remove(geofenceId, user)

@@ -6,9 +6,15 @@ import { EditGeofenceModal } from '@components/geofence/EditGeofenceModal'
 import { GeofenceList } from '@components/geofence/GeofenceList'
 import { GeofenceMap } from '@components/map/GeofenceMap'
 import { geofenceService } from '@services/geofenceService'
+import { useAuthStore } from '@store/authStore'
+import { canCreate, canDelete, canEdit } from '@utils/permissions'
 import type { Geofence } from '../../types/geofence'
 
 export function GeofencePage() {
+  const role = useAuthStore((state) => state.role)
+  const canCreateGeofence = canCreate(role)
+  const canEditGeofence = canEdit(role)
+  const canDeleteGeofence = canDelete(role)
   const [geofences, setGeofences] = useState<Geofence[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -45,14 +51,16 @@ export function GeofencePage() {
             <p className='text-sm text-slate-600 dark:text-slate-300'>Create and manage geofence boundaries</p>
           </div>
 
-          <button
-            type='button'
-            onClick={() => setIsAddModalOpen(true)}
-            className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
-          >
-            <FiPlus size={16} />
-            Add Geofence
-          </button>
+          {canCreateGeofence ? (
+            <button
+              type='button'
+              onClick={() => setIsAddModalOpen(true)}
+              className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
+            >
+              <FiPlus size={16} />
+              Add Geofence
+            </button>
+          ) : null}
         </div>
       </section>
 
@@ -85,31 +93,37 @@ export function GeofencePage() {
             geofences={geofences}
             selectedId={selectedGeofence?.id ?? null}
             onSelect={(geofence) => setSelectedGeofence(geofence)}
-            onDelete={(geofence) => setDeletingGeofence(geofence)}
-            onEdit={(geofence) => setEditingGeofence(geofence)}
+            onDelete={canDeleteGeofence ? (geofence) => setDeletingGeofence(geofence) : undefined}
+            onEdit={canEditGeofence ? (geofence) => setEditingGeofence(geofence) : undefined}
           />
         </>
       )}
 
-      <AddGeofenceModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSuccess={loadGeofences}
-      />
+      {canCreateGeofence ? (
+        <AddGeofenceModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onSuccess={loadGeofences}
+        />
+      ) : null}
 
-      <EditGeofenceModal
-        isOpen={Boolean(editingGeofence)}
-        geofence={editingGeofence}
-        onClose={() => setEditingGeofence(null)}
-        onSuccess={loadGeofences}
-      />
+      {canEditGeofence ? (
+        <EditGeofenceModal
+          isOpen={Boolean(editingGeofence)}
+          geofence={editingGeofence}
+          onClose={() => setEditingGeofence(null)}
+          onSuccess={loadGeofences}
+        />
+      ) : null}
 
-      <DeleteGeofenceDialog
-        isOpen={Boolean(deletingGeofence)}
-        geofence={deletingGeofence}
-        onClose={() => setDeletingGeofence(null)}
-        onSuccess={loadGeofences}
-      />
+      {canDeleteGeofence ? (
+        <DeleteGeofenceDialog
+          isOpen={Boolean(deletingGeofence)}
+          geofence={deletingGeofence}
+          onClose={() => setDeletingGeofence(null)}
+          onSuccess={loadGeofences}
+        />
+      ) : null}
     </div>
   )
 }
