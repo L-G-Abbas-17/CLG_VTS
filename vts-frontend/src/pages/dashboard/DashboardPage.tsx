@@ -5,7 +5,9 @@ import { RecentActivities } from '@components/dashboard/RecentActivities'
 import { DashboardLayout } from '@components/layout/DashboardLayout'
 import { StatCard } from '@components/ui/StatCard'
 import { WelcomeCard } from '@components/ui/WelcomeCard'
+import { collegeService, type CollegeOption } from '@services/collegeService'
 import { useAuthStore } from '@store/authStore'
+import { useCollegeFilterStore } from '@store/collegeFilterStore'
 import { useNavigate } from 'react-router-dom'
 import { vehicleService } from '@services/vehicleService'
 import { notificationService } from '@services/notificationService'
@@ -77,11 +79,39 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const role = useAuthStore((state) => state.role)
+  const selectedCollegeId = useCollegeFilterStore((state) => state.selectedCollegeId)
+  const setSelectedCollegeId = useCollegeFilterStore((state) => state.setSelectedCollegeId)
 
   const [counts, setCounts] = useState<VehicleStatusCounts>(EMPTY_COUNTS)
   const [activities, setActivities] = useState<ActivityItem[]>([])
+  const [colleges, setColleges] = useState<CollegeOption[]>([])
+  const [isLoadingColleges, setIsLoadingColleges] = useState(false)
+
+  const isSuperAdmin = role === 'SUPER_ADMIN'
 
   const stoppedCount = useMemo(() => counts.stopped ?? 0, [counts])
+
+  useEffect(() => {
+    if (!isSuperAdmin) {
+      return
+    }
+
+    const loadColleges = async () => {
+      setIsLoadingColleges(true)
+      try {
+        const data = await collegeService.getColleges()
+        setColleges(data)
+
+        if (selectedCollegeId && !data.some((college) => college.id === selectedCollegeId)) {
+          setSelectedCollegeId(null)
+        }
+      } finally {
+        setIsLoadingColleges(false)
+      }
+    }
+
+    void loadColleges()
+  }, [isSuperAdmin, selectedCollegeId, setSelectedCollegeId])
 
   useEffect(() => {
     const loadCounts = async () => {
@@ -100,7 +130,7 @@ export function DashboardPage() {
 
     void loadCounts()
     void loadActivities()
-  }, [])
+  }, [selectedCollegeId])
 
   const pieData = useMemo(
     () => [
@@ -115,7 +145,32 @@ export function DashboardPage() {
   return (
     <DashboardLayout>
       <div className='mx-auto w-full max-w-7xl space-y-5'>
-        <WelcomeCard name={user?.name ?? 'Operator'} role={role ?? 'NO_ROLE'} />
+        <WelcomeCard
+          name={user?.name ?? 'Operator'}
+          role={role ?? 'NO_ROLE'}
+          actions={
+            isSuperAdmin ? (
+              <label className='block space-y-2'>
+                <span className='text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400'>
+                  College Scope
+                </span>
+                <select
+                  value={selectedCollegeId ?? ''}
+                  onChange={(event) => setSelectedCollegeId(event.target.value || null)}
+                  disabled={isLoadingColleges}
+                  className='w-full rounded-xl border border-slate-200 bg-white/85 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-100 dark:focus:border-[#38bdf8]'
+                >
+                  <option value=''>{isLoadingColleges ? 'Loading colleges...' : 'All colleges'}</option>
+                  {colleges.map((college) => (
+                    <option key={college.id} value={college.id}>
+                      {college.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null
+          }
+        />
 
         <section className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5'>
           <button type='button' onClick={() => navigate('/vehicles')} className='text-left'>

@@ -7,6 +7,7 @@ import { isSuperAdmin, requireCollegeScope } from '../../common/tenant/tenant-sc
 
 export type StopEventRow = {
   id: string
+  collegeId: string
   deviceId: string
   vehicleId: string
   vehicleName: string
@@ -130,6 +131,7 @@ export class StopEventsService {
       WITH deduped AS (
         SELECT DISTINCT ON (t."deviceId", t.timestamp)
           t."deviceId",
+          t."collegeId",
           t."vehicleId",
           t."vehicleName",
           t.timestamp,
@@ -150,6 +152,7 @@ export class StopEventsService {
       stop_starts AS (
         SELECT
           o."deviceId",
+          o."collegeId",
           o."vehicleId",
           o."vehicleName",
           o.timestamp AS "startTime",
@@ -164,6 +167,7 @@ export class StopEventsService {
         SELECT
           md5(ss."deviceId" || ':' || ss."startTime"::text) AS id,
           ss."deviceId",
+          ss."collegeId",
           ss."vehicleId",
           ss."vehicleName",
           ss."startTime",
@@ -193,6 +197,7 @@ export class StopEventsService {
       SELECT
         stops.id,
         stops."deviceId",
+        stops."collegeId",
         stops."vehicleId",
         stops."vehicleName",
         stops."startTime",
@@ -213,6 +218,7 @@ export class StopEventsService {
   private mapRow(row: Record<string, unknown>): StopEventRow {
     return {
       id: String(row.id),
+      collegeId: String(row.collegeId),
       deviceId: String(row.deviceId),
       vehicleId: String(row.vehicleId),
       vehicleName: String(row.vehicleName),

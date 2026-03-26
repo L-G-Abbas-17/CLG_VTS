@@ -1,5 +1,6 @@
 import type { Notification } from '../types/notification'
 import { apiClient } from '../api/apiClient'
+import { filterByActiveCollege } from '@utils/collegeScope'
 
 type CreateNotificationInput = {
   type: Notification['type']
@@ -14,7 +15,8 @@ type CreateNotificationInput = {
 
 class NotificationService {
   async getNotifications(): Promise<Notification[]> {
-    return apiClient.get<Notification[]>('/notifications')
+    const notifications = await apiClient.get<Notification[]>('/notifications')
+    return filterByActiveCollege(notifications)
   }
 
   async markAsRead(notificationId: string): Promise<Notification | null> {

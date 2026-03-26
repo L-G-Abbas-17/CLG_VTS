@@ -1,5 +1,6 @@
 export interface OverspeedEvent {
   id: string
+  collegeId?: string
   vehicleId: string
   vehicleName: string
   tripId: string
@@ -16,6 +17,7 @@ export interface OverspeedEvent {
 
 export interface IdlingEvent {
   id: string
+  collegeId?: string
   vehicleId: string
   vehicleName: string
   tripId: string
@@ -30,6 +32,7 @@ export interface IdlingEvent {
 
 export interface StopEvent {
   id: string
+  collegeId?: string
   vehicleId: string
   vehicleName: string
   tripId: string

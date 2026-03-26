@@ -1,5 +1,6 @@
 import type { Geofence } from '../types/geofence'
 import { apiClient } from '../api/apiClient'
+import { filterByActiveCollege } from '@utils/collegeScope'
 
 export type CreateGeofenceInput = {
   name: string
@@ -46,7 +47,7 @@ export async function fetchStops(): Promise<Stop[]> {
       return []
     }
 
-    const stops = response
+    const stops = filterByActiveCollege(response)
       .map((item) => mapGeofenceToStop((item as Partial<Geofence>) ?? {}))
       .filter((stop): stop is Stop => Boolean(stop))
 
@@ -64,7 +65,8 @@ export async function fetchStops(): Promise<Stop[]> {
 
 class GeofenceService {
   async getGeofences(): Promise<Geofence[]> {
-    return apiClient.get<Geofence[]>('/geofences')
+    const geofences = await apiClient.get<Geofence[]>('/geofences')
+    return filterByActiveCollege(geofences)
   }
 
   async createGeofence(

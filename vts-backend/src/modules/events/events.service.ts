@@ -98,6 +98,7 @@ export class EventsService {
 
     return stops.map((event) => ({
       id: event.id,
+      collegeId: event.collegeId,
       vehicleId: event.vehicleId,
       vehicleName: event.vehicleName,
       tripId: '',
@@ -114,6 +115,7 @@ export class EventsService {
     const event = await this.stopEventsService.getById(actor, id)
     return {
       id: event.id,
+      collegeId: event.collegeId,
       vehicleId: event.vehicleId,
       vehicleName: event.vehicleName,
       tripId: '',

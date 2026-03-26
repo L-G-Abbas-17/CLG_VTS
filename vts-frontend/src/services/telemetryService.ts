@@ -1,5 +1,6 @@
 import type { TelemetryFilter, TelemetryRecord } from '../types/telemetry'
 import { apiClient } from '../api/apiClient'
+import { filterByActiveCollege } from '@utils/collegeScope'
 
 class TelemetryService {
   async getTelemetry(filters?: TelemetryFilter): Promise<TelemetryRecord[]> {
@@ -10,7 +11,8 @@ class TelemetryService {
     if (filters?.endDate) query.set('endDate', filters.endDate)
 
     const suffix = query.toString() ? `?${query.toString()}` : ''
-    return apiClient.get<TelemetryRecord[]>(`/telemetry${suffix}`)
+    const rows = await apiClient.get<TelemetryRecord[]>(`/telemetry${suffix}`)
+    return filterByActiveCollege(rows)
   }
 
   async getTelemetryByVehicle(vehicleId: string): Promise<TelemetryRecord[]> {

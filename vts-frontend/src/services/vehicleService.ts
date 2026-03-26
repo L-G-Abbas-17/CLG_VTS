@@ -1,5 +1,6 @@
 import type { TelemetryPoint, Trip, Vehicle, VehicleStatusCounts, VehicleType } from '../types/vehicle'
 import { apiClient } from '../api/apiClient'
+import { filterByActiveCollege } from '@utils/collegeScope'
 
 export type CreateVehicleInput = {
   vehicleName: string
@@ -37,6 +38,7 @@ export type DeleteVehicleResponse = {
 
 type BackendVehicle = {
   id: string
+  collegeId?: string | null
   registrationNumber: string
   vehicleName: string
   vehicleType: VehicleType
@@ -79,7 +81,7 @@ function normalizeVehicle(vehicle: BackendVehicle): Vehicle {
 class VehicleService {
   async getVehicles(): Promise<Vehicle[]> {
     const vehicles = await apiClient.get<BackendVehicle[]>('/vehicles')
-    return vehicles.map(normalizeVehicle)
+    return filterByActiveCollege(vehicles).map(normalizeVehicle)
   }
 
   async getVehicleById(vehicleId: string): Promise<Vehicle | null> {
@@ -96,7 +98,16 @@ class VehicleService {
   }
 
   async getVehicleStatusCounts(): Promise<VehicleStatusCounts> {
-    return apiClient.get<VehicleStatusCounts>('/vehicles/status-counts')
+    const vehicles = await this.getVehicles()
+
+    return vehicles.reduce<VehicleStatusCounts>(
+      (acc, vehicle) => {
+        acc.total += 1
+        acc[vehicle.status] += 1
+        return acc
+      },
+      { total: 0, moving: 0, idling: 0, offline: 0, stopped: 0 },
+    )
   }
 
   async createVehicle(vehicleData: CreateVehicleInput): Promise<CreateVehicleResponse> {

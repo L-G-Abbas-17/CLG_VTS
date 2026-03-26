@@ -1,9 +1,11 @@
 import type { Trip, TripPlaybackPoint } from '../types/trip'
 import { apiClient } from '../api/apiClient'
+import { filterByActiveCollege } from '@utils/collegeScope'
 
 class TripService {
   async getTrips(): Promise<Trip[]> {
-    return apiClient.get<Trip[]>('/trips')
+    const trips = await apiClient.get<Trip[]>('/trips')
+    return filterByActiveCollege(trips)
   }
 
   async getTripById(tripId: string): Promise<Trip | null> {
