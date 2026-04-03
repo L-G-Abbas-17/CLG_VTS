@@ -10,7 +10,7 @@ export function getDatabaseConfig(configService: ConfigService): TypeOrmModuleOp
     password: configService.get<string>('DB_PASS') ?? configService.get<string>('DB_PASSWORD'),
     database: configService.get<string>('DB_NAME'),
     autoLoadEntities: true,
-    synchronize: false,
+    synchronize: true,
     migrationsRun: false,
     migrations: ['dist/migrations/1*.js'],
     logging: false,
