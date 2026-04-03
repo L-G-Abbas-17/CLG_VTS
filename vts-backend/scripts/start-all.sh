@@ -4,7 +4,8 @@ set -e
 
 echo "Starting infrastructure services..."
 
-docker compose up -d postgres redis mosquitto temporal temporal-ui
+# docker compose up -d postgres redis mosquitto temporal temporal-ui
+docker-compose up -d --build
 
 echo "Waiting for PostgreSQL to be ready..."
 
