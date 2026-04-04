@@ -19,5 +19,6 @@ import { TelemetryStateService } from './telemetry-state.service'
     WebsocketModule,
   ],
   providers: [MqttService, TelemetryHandler, TelemetryStateService],
+  exports: [TelemetryHandler],
 })
 export class MqttModule {}

@@ -73,6 +73,8 @@ services:
     restart: always
     ports:
       - "3000:3000"
+      - "4001:4001/udp"
+      - "4002:4002"
 
     depends_on:
       - postgres
@@ -95,6 +97,9 @@ services:
 
       MQTT_BROKER_URL: mqtt://mosquitto:1883
       MQTT_TELEMETRY_TOPIC: vts/devices/+/telemetry
+      UDP_PORT: 4001
+      TCP_PORT: 4002
+      TCP_HOST: 0.0.0.0
 
       TEMPORAL_ADDRESS: temporal:7233
       REDIS_HOST: redis

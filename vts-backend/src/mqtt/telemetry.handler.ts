@@ -8,6 +8,7 @@ import { EventsService } from '../modules/events/events.service'
 import { computeVehicleStatus, getOfflineThresholdMs } from '../common/utils/vehicleStatus'
 import { diffMs } from '../common/utils/time'
 import { TelemetryStateService, type VehicleRuntimeState } from './telemetry-state.service'
+import { CreateTelemetryDto } from '../modules/telemetry/dto/create-telemetry.dto'
 
 type RawTelemetryPayload = {
   device_id?: string
@@ -51,85 +52,16 @@ export class TelemetryHandler {
         return
       }
 
-      const device = await this.devicesService.findByUid(deviceId)
-      if (!device) {
-        console.warn(`[MQTT] Unknown device ${deviceId}`)
-        return
-      }
-
-      if (!device.assignedVehicleId) {
-        return
-      }
-
-      const vehicle = await this.vehiclesService.findById(device.assignedVehicleId)
-      const speed = Number(data.speed_kmph)
-      const ignition = typeof data.ignition === 'boolean' ? data.ignition : true
-      const timestamp = data.timestamp ? new Date(data.timestamp) : new Date()
-
-      const record = await this.telemetryService.create({
-        collegeId: vehicle.collegeId,
-        vehicleId: vehicle.id,
-        vehicleName: vehicle.vehicleName,
-        deviceId: device.deviceId,
-        timestamp,
+      await this.handleNormalizedTelemetry({
+        deviceId,
         lat: Number(data.lat),
         lon: Number(data.lon),
-        address: '',
-        speed,
-        ignition,
+        speed: Number(data.speed_kmph),
         battery: Number(data.battery_mv),
         signal: Number(data.signal_dbm),
-      })
-
-      console.log(
-        `[TELEMETRY] ${vehicle.vehicleName} (${device.deviceId}) lat=${record.lat} lon=${record.lon} speed=${speed}`
-      )
-
-      const computedStatus = computeVehicleStatus(
-        {
-          timestamp: record.timestamp,
-          speed,
-          ignition,
-          previousStatus: vehicle.status,
-        },
-        { offlineThresholdMs: this.offlineThresholdMs },
-      )
-
-      if (vehicle.status !== computedStatus) {
-        this.logger.debug(
-          `vehicle_status_updated vehicleId=${vehicle.id} previousStatus=${vehicle.status} newStatus=${computedStatus} timestamp=${record.timestamp.toISOString()}`,
-        )
-      }
-
-      await this.vehiclesService.updateFromTelemetry(vehicle.id, {
-        speed,
-        lat: Number(data.lat),
-        lon: Number(data.lon),
-        address: record.address,
-        lastSeen: record.timestamp,
-        status: computedStatus,
-        geofenceId: record.geofenceId ?? null,
-        geofenceName: record.geofenceName ?? null,
-      })
-
-      await this.handleTripsAndEvents(
-        vehicle.collegeId,
-        vehicle.id,
-        vehicle.vehicleName,
-        record,
-        speed,
-        ignition,
-        record.address,
-        vehicle.speedLimit ?? 75,
-      )
-
-      this.telemetryGateway.broadcastTelemetry({
-        vehicleId: vehicle.id,
-        lat: record.lat,
-        lng: record.lon,
-        speed,
-        status: computedStatus,
-        timestamp: record.timestamp.toISOString(),
+        heading: typeof data.heading === 'number' ? Number(data.heading) : undefined,
+        ignition: typeof data.ignition === 'boolean' ? data.ignition : true,
+        ...(data.timestamp ? { timestamp: data.timestamp } : {}),
       })
     } catch (error) {
       this.logTelemetryFailure({
@@ -141,6 +73,75 @@ export class TelemetryHandler {
       })
       return
     }
+  }
+
+  async handleNormalizedTelemetry(payload: CreateTelemetryDto) {
+    const device = await this.devicesService.findByUid(payload.deviceId)
+    if (!device) {
+      console.warn(`[TELEMETRY] Unknown device ${payload.deviceId}`)
+      return
+    }
+
+    if (!device.assignedVehicleId) {
+      return
+    }
+
+    const vehicle = await this.vehiclesService.findById(device.assignedVehicleId)
+    const speed = Number(payload.speed)
+    const ignition = Boolean(payload.ignition)
+
+    const record = await this.telemetryService.processTelemetry(payload)
+
+    console.log(
+      `[TELEMETRY] ${vehicle.vehicleName} (${device.deviceId}) lat=${record.lat} lon=${record.lon} speed=${speed}`
+    )
+
+    const computedStatus = computeVehicleStatus(
+      {
+        timestamp: record.timestamp,
+        speed,
+        ignition,
+        previousStatus: vehicle.status,
+      },
+      { offlineThresholdMs: this.offlineThresholdMs },
+    )
+
+    if (vehicle.status !== computedStatus) {
+      this.logger.debug(
+        `vehicle_status_updated vehicleId=${vehicle.id} previousStatus=${vehicle.status} newStatus=${computedStatus} timestamp=${record.timestamp.toISOString()}`,
+      )
+    }
+
+    await this.vehiclesService.updateFromTelemetry(vehicle.id, {
+      speed,
+      lat: record.lat,
+      lon: record.lon,
+      address: record.address,
+      lastSeen: record.timestamp,
+      status: computedStatus,
+      geofenceId: record.geofenceId ?? null,
+      geofenceName: record.geofenceName ?? null,
+    })
+
+    await this.handleTripsAndEvents(
+      vehicle.collegeId,
+      vehicle.id,
+      vehicle.vehicleName,
+      record,
+      speed,
+      ignition,
+      record.address,
+      vehicle.speedLimit ?? 75,
+    )
+
+    this.telemetryGateway.broadcastTelemetry({
+      vehicleId: vehicle.id,
+      lat: record.lat,
+      lng: record.lon,
+      speed,
+      status: computedStatus,
+      timestamp: record.timestamp.toISOString(),
+    })
   }
 
   private logTelemetryFailure(input: {

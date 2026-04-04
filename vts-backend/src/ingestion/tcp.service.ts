@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config'
 import { Server, Socket, createServer } from 'net'
 import { ParserService } from './parser.service'
-import { TelemetryService } from '../modules/telemetry/telemetry.service'
+import { TelemetryHandler } from '../mqtt/telemetry.handler'
 
 @Injectable()
 export class TcpService implements OnModuleInit, OnModuleDestroy {
@@ -12,7 +12,7 @@ export class TcpService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly configService: ConfigService,
     private readonly parserService: ParserService,
-    private readonly telemetryService: TelemetryService,
+    private readonly telemetryHandler: TelemetryHandler,
   ) {}
 
   onModuleInit() {
@@ -28,6 +28,7 @@ export class TcpService implements OnModuleInit, OnModuleDestroy {
       socket.on('data', async (chunk) => {
         buffer += chunk.toString('utf8')
         this.logger.debug(`tcp_packet_received client=${clientLabel} bytes=${chunk.length}`)
+        this.logger.debug(`TCP payload chunk: ${chunk.toString('utf8').trim()}`)
 
         const frames = this.extractFrames(buffer)
         buffer = frames.remaining
@@ -39,7 +40,7 @@ export class TcpService implements OnModuleInit, OnModuleDestroy {
               continue
             }
 
-            await this.telemetryService.processTelemetry(payload)
+            await this.telemetryHandler.handleNormalizedTelemetry(payload)
           } catch (error) {
             const stack = error instanceof Error ? error.stack : undefined
             const message = error instanceof Error ? error.message : String(error)

@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config'
 import { createSocket, Socket } from 'dgram'
 import { ParserService } from './parser.service'
-import { TelemetryService } from '../modules/telemetry/telemetry.service'
+import { TelemetryHandler } from '../mqtt/telemetry.handler'
 
 @Injectable()
 export class UdpService implements OnModuleInit, OnModuleDestroy {
@@ -12,7 +12,7 @@ export class UdpService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly configService: ConfigService,
     private readonly parserService: ParserService,
-    private readonly telemetryService: TelemetryService,
+    private readonly telemetryHandler: TelemetryHandler,
   ) {}
 
   onModuleInit() {
@@ -24,7 +24,9 @@ export class UdpService implements OnModuleInit, OnModuleDestroy {
     })
 
     this.server.on('message', async (message, remote) => {
+      const rawPayload = message.toString('utf8').trim()
       this.logger.debug(`udp_packet_received from=${remote.address}:${remote.port} bytes=${message.length}`)
+      this.logger.debug(`UDP payload: ${rawPayload}`)
 
       try {
         const payload = this.parserService.parseTelemetry(message, 'udp')
@@ -32,7 +34,7 @@ export class UdpService implements OnModuleInit, OnModuleDestroy {
           return
         }
 
-        await this.telemetryService.processTelemetry(payload)
+        await this.telemetryHandler.handleNormalizedTelemetry(payload)
       } catch (error) {
         const stack = error instanceof Error ? error.stack : undefined
         const messageText = error instanceof Error ? error.message : String(error)

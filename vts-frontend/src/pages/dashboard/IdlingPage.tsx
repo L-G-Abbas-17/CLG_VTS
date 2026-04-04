@@ -11,9 +11,11 @@ export function IdlingPage() {
   const requestIdRef = useRef(0)
   const intervalRef = useRef<number | null>(null)
 
-  const loadEvents = useCallback(async () => {
+  const loadEvents = useCallback(async (showLoading = true) => {
     const requestId = ++requestIdRef.current
-    setIsLoading(true)
+    if (showLoading) {
+      setIsLoading(true)
+    }
     try {
       const data = await idlingService.getIdlingEvents()
       if (requestId !== requestIdRef.current) {
@@ -21,7 +23,7 @@ export function IdlingPage() {
       }
       setEvents(data)
     } finally {
-      if (requestId === requestIdRef.current) {
+      if (showLoading && requestId === requestIdRef.current) {
         setIsLoading(false)
       }
     }
@@ -33,7 +35,7 @@ export function IdlingPage() {
 
   useEffect(() => {
     intervalRef.current = window.setInterval(() => {
-      void loadEvents()
+      void loadEvents(false)
     }, 15000)
 
     return () => {
