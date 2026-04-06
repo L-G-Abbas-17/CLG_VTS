@@ -1,4 +1,5 @@
 #include <HardwareSerial.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include "config.h"
@@ -24,7 +25,7 @@ const int sim_tx_pin = EC25_TX;
 const int ignition_input_pin = IGNITION_PIN;
 const bool ignition_fallback_state = true; // TODO: replace with real ignition input before production deployment.
 
-const unsigned long gps_poll_interval_ms = 5000;
+unsigned long gps_poll_interval_ms = 5000;
 const uint64_t fallback_epoch_base_ms = 1700000000000ULL;
 const int default_battery_mv = 3900;
 const int default_signal_dbm = -70;
@@ -66,6 +67,7 @@ bool mqttConnected = false;
 QueuedMessage telemetryQueue[telemetry_queue_capacity];
 int queueHead = 0;
 int queueCount = 0;
+unsigned long lastTelemetryPollAtMs = 0;
 
 // ----------------------
 // Function prototypes
@@ -79,6 +81,8 @@ bool connectMQTT();
 bool ensureMqttConnected();
 bool publishMessage(const String& topic, const String& msg);
 bool publishRawMessage(const String& topic, const String& msg);
+void processIncomingMqttMessages(const String& modemOutput);
+void handleCommand(const String& payload);
 bool flushQueuedMessages();
 void enqueueMessage(const String& topic, const String& payload);
 bool queueIsEmpty();
@@ -101,9 +105,12 @@ bool parseGPS(const String& raw, TelemetrySample& sample);
 float parseLatLon(String s);
 String buildTelemetryTopic();
 String buildIdentityTopic();
+String buildCommandTopic();
+String buildAckTopic();
 String buildMqttClientId();
 String buildTelemetryJson(const TelemetrySample& sample);
 String buildIdentityJson();
+String buildAckJson(unsigned long intervalMs);
 String readImsi();
 String uint64ToString(uint64_t value);
 bool tryBuildIsoTimestamp(const String& utc, const String& date, String& isoTimestamp);
@@ -115,6 +122,9 @@ uint64_t epochMsFromDateTime(int year, int month, int day, int hour, int minute,
 uint64_t fallbackTimestampMs();
 bool isLeapYear(int year);
 int daysInMonth(int year, int month);
+bool extractQuotedField(const String& input, int& cursor, String& value);
+bool extractJsonStringValue(const String& json, const String& key, String& value);
+bool extractJsonUnsignedLongValue(const String& json, const String& key, unsigned long& value);
 
 // ----------------------
 // Setup
@@ -150,16 +160,34 @@ void setup() {
 // Main loop
 // ----------------------
 void loop() {
+  String modemOutput = readModemUntilQuiet(50, 20);
+  if (modemOutput.length() > 0) {
+    processIncomingMqttMessages(modemOutput);
+  }
+
   if (!queueIsEmpty()) {
     flushQueuedMessages();
   }
 
+  unsigned long now = millis();
+  if (now - lastTelemetryPollAtMs < gps_poll_interval_ms) {
+    return;
+  }
+
+  lastTelemetryPollAtMs = now;
   sim.println("AT+QGPSLOC?");
-  delay(500);
+  String gpsResponse = readModemUntilQuiet(1200, 100);
+  if (gpsResponse.length() > 0) {
+    processIncomingMqttMessages(gpsResponse);
+  }
 
   String line = "";
-  while (sim.available()) {
-    char c = sim.read();
+  for (int i = 0; i < gpsResponse.length(); i++) {
+    char c = gpsResponse.charAt(i);
+    if (c == '\r') {
+      continue;
+    }
+
     if (c == '\n') {
       line.trim();
       if (line.startsWith("+QGPSLOC:")) {
@@ -185,12 +213,34 @@ void loop() {
         }
       }
       line = "";
-    } else {
-      line += c;
+      continue;
     }
+
+    line += c;
   }
 
-  delay(gps_poll_interval_ms);
+  line.trim();
+  if (line.startsWith("+QGPSLOC:")) {
+    TelemetrySample sample;
+    if (!parseGPS(line, sample)) {
+      Serial.println("Failed to parse GPS sample");
+      return;
+    }
+
+    sample.ignition = readIgnitionState();
+    sample.batteryMv = readBatteryMillivolts();
+    sample.signalDbm = readSignalDbm();
+
+    String topic = buildTelemetryTopic();
+    String json = buildTelemetryJson(sample);
+
+    Serial.println("Telemetry topic: " + topic);
+    Serial.println("Telemetry payload: " + json);
+
+    if (!publishMessage(topic, json)) {
+      Serial.println("Telemetry publish failed; payload queued for retry");
+    }
+  }
 }
 
 // ----------------------
@@ -409,6 +459,14 @@ String buildIdentityTopic() {
   return "vts/devices/" + String(device_id) + "/identity";
 }
 
+String buildCommandTopic() {
+  return "vts/devices/" + String(device_id) + "/commands";
+}
+
+String buildAckTopic() {
+  return "vts/devices/" + String(device_id) + "/ack";
+}
+
 bool connectMQTT() {
   if (!validateMqttBrokerConfig()) {
     mqttConnected = false;
@@ -460,6 +518,17 @@ bool connectMQTT() {
 
   mqttConnected = true;
   Serial.println("MQTT connected");
+
+  String subscribeCommand = "AT+QMTSUB=0,1,\"" + buildCommandTopic() + "\",1";
+  String subscribeResponse = readATResponse(subscribeCommand, mqtt_connect_timeout_ms);
+  logModemResponse("AT+QMTSUB response", subscribeResponse);
+  if (!responseContainsSuccess(subscribeResponse, "+QMTSUB: 0,1,0")) {
+    Serial.println("MQTT subscribe failed for command topic: " + buildCommandTopic());
+    mqttConnected = false;
+    return false;
+  }
+
+  Serial.println("Subscribed to command topic: " + buildCommandTopic());
 
   if (!publishRawMessage(buildIdentityTopic(), buildIdentityJson())) {
     Serial.println("Identity publish failed after MQTT connect");
@@ -513,6 +582,98 @@ bool publishRawMessage(const String& topic, const String& msg) {
 
   Serial.println("Message published to MQTT topic: " + topic);
   return true;
+}
+
+void processIncomingMqttMessages(const String& modemOutput) {
+  if (modemOutput.indexOf("+QMTRECV:") < 0) {
+    return;
+  }
+
+  Serial.println("Incoming modem output:");
+  Serial.println(modemOutput);
+
+  String line = "";
+  for (int i = 0; i < modemOutput.length(); i++) {
+    char c = modemOutput.charAt(i);
+    if (c == '\r') {
+      continue;
+    }
+
+    if (c == '\n') {
+      line.trim();
+      if (line.startsWith("+QMTRECV:")) {
+        int cursor = line.indexOf(':');
+        if (cursor < 0) {
+          Serial.println("Ignoring malformed +QMTRECV line: missing ':'");
+          line = "";
+          continue;
+        }
+
+        cursor++;
+        String topic;
+        String payload;
+
+        if (!extractQuotedField(line, cursor, topic)) {
+          Serial.println("Ignoring malformed +QMTRECV line: topic parse failed");
+          line = "";
+          continue;
+        }
+
+        if (!extractQuotedField(line, cursor, payload)) {
+          Serial.println("Ignoring malformed +QMTRECV line: payload parse failed");
+          line = "";
+          continue;
+        }
+
+        if (topic != buildCommandTopic()) {
+          Serial.println("Ignoring MQTT message on unexpected topic: " + topic);
+          line = "";
+          continue;
+        }
+
+        Serial.println("MQTT command topic: " + topic);
+        Serial.println("MQTT command payload: " + payload);
+        handleCommand(payload);
+      }
+      line = "";
+      continue;
+    }
+
+    line += c;
+  }
+
+  line.trim();
+  if (!line.startsWith("+QMTRECV:")) {
+    return;
+  }
+
+  int cursor = line.indexOf(':');
+  if (cursor < 0) {
+    Serial.println("Ignoring malformed +QMTRECV line: missing ':'");
+    return;
+  }
+
+  cursor++;
+  String topic;
+  String payload;
+  if (!extractQuotedField(line, cursor, topic)) {
+    Serial.println("Ignoring malformed +QMTRECV line: topic parse failed");
+    return;
+  }
+
+  if (!extractQuotedField(line, cursor, payload)) {
+    Serial.println("Ignoring malformed +QMTRECV line: payload parse failed");
+    return;
+  }
+
+  if (topic != buildCommandTopic()) {
+    Serial.println("Ignoring MQTT message on unexpected topic: " + topic);
+    return;
+  }
+
+  Serial.println("MQTT command topic: " + topic);
+  Serial.println("MQTT command payload: " + payload);
+  handleCommand(payload);
 }
 
 void enqueueMessage(const String& topic, const String& payload) {
@@ -676,6 +837,55 @@ String buildIdentityJson() {
   return json;
 }
 
+String buildAckJson(unsigned long intervalMs) {
+  String json = "{";
+  json += "\"type\":\"ack\",";
+  json += "\"status\":\"success\",";
+  json += "\"interval\":" + String(intervalMs);
+  json += "}";
+  return json;
+}
+
+void handleCommand(const String& payload) {
+  if (payload.length() == 0) {
+    Serial.println("Ignoring empty MQTT command payload");
+    return;
+  }
+
+  String commandType;
+  if (!extractJsonStringValue(payload, "type", commandType)) {
+    Serial.println("Ignoring MQTT command: missing type field");
+    return;
+  }
+
+  if (commandType != "config_update") {
+    Serial.println("Ignoring unsupported MQTT command type: " + commandType);
+    return;
+  }
+
+  unsigned long requestedIntervalMs = 0;
+  if (!extractJsonUnsignedLongValue(payload, "interval", requestedIntervalMs)) {
+    Serial.println("Ignoring config_update: missing or invalid interval");
+    return;
+  }
+
+  if (requestedIntervalMs < 1000 || requestedIntervalMs > 60000) {
+    Serial.println("Ignoring config_update: interval out of range (" + String(requestedIntervalMs) + " ms)");
+    return;
+  }
+
+  gps_poll_interval_ms = requestedIntervalMs;
+  Serial.println("Telemetry interval updated to " + String(gps_poll_interval_ms) + " ms");
+
+  String ackTopic = buildAckTopic();
+  String ackPayload = buildAckJson(gps_poll_interval_ms);
+  Serial.println("Publishing ACK topic: " + ackTopic);
+  Serial.println("Publishing ACK payload: " + ackPayload);
+  if (!publishMessage(ackTopic, ackPayload)) {
+    Serial.println("ACK publish failed; payload queued for retry");
+  }
+}
+
 String readImsi() {
   String response = readATResponse("AT+CIMI", 2000);
   String digits = "";
@@ -748,6 +958,92 @@ bool tryBuildIsoTimestamp(const String& utc, const String& date, String& isoTime
     fractional.c_str()
   );
   isoTimestamp = String(buffer);
+  return true;
+}
+
+bool extractQuotedField(const String& input, int& cursor, String& value) {
+  while (cursor < input.length() && input.charAt(cursor) != '"') {
+    cursor++;
+  }
+
+  if (cursor >= input.length()) {
+    return false;
+  }
+
+  cursor++;
+  value = "";
+  bool escapeNext = false;
+
+  while (cursor < input.length()) {
+    char c = input.charAt(cursor++);
+    if (escapeNext) {
+      value += c;
+      escapeNext = false;
+      continue;
+    }
+
+    if (c == '\\') {
+      escapeNext = true;
+      continue;
+    }
+
+    if (c == '"') {
+      return true;
+    }
+
+    value += c;
+  }
+
+  return false;
+}
+
+bool extractJsonStringValue(const String& json, const String& key, String& value) {
+  String pattern = "\"" + key + "\"";
+  int keyIndex = json.indexOf(pattern);
+  if (keyIndex < 0) {
+    return false;
+  }
+
+  int colonIndex = json.indexOf(':', keyIndex + pattern.length());
+  if (colonIndex < 0) {
+    return false;
+  }
+
+  int cursor = colonIndex + 1;
+  while (cursor < json.length() && isspace(static_cast<unsigned char>(json.charAt(cursor)))) {
+    cursor++;
+  }
+
+  return extractQuotedField(json, cursor, value);
+}
+
+bool extractJsonUnsignedLongValue(const String& json, const String& key, unsigned long& value) {
+  String pattern = "\"" + key + "\"";
+  int keyIndex = json.indexOf(pattern);
+  if (keyIndex < 0) {
+    return false;
+  }
+
+  int colonIndex = json.indexOf(':', keyIndex + pattern.length());
+  if (colonIndex < 0) {
+    return false;
+  }
+
+  int start = colonIndex + 1;
+  while (start < json.length() && isspace(static_cast<unsigned char>(json.charAt(start)))) {
+    start++;
+  }
+
+  int end = start;
+  while (end < json.length() && isdigit(json.charAt(end))) {
+    end++;
+  }
+
+  if (start == end) {
+    return false;
+  }
+
+  value = static_cast<unsigned long>(json.substring(start, end).toInt());
   return true;
 }
 

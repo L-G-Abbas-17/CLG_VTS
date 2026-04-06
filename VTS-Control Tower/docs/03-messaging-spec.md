@@ -21,7 +21,7 @@ Recommended topic layout:
 - telemetry publish: `vts/devices/{deviceId}/telemetry`
 - identity publish: `vts/devices/{deviceId}/identity`
 - command downlink: `vts/devices/{deviceId}/commands`
-- command ack: `vts/devices/{deviceId}/acks`
+- command ack: `vts/devices/{deviceId}/ack`
 
 ## Device -> Server Telemetry Message
 
@@ -103,21 +103,43 @@ Current-state note:
 
 ## Server -> Device Command Message
 
-Canonical contract:
+Current implemented contract for firmware interval updates:
 
 ```json
 {
-  "command": "string",
-  "payload": {}
+  "type": "config_update",
+  "interval": 10000
 }
 ```
 
-Examples:
+Rules:
 
-- `set_interval`
-- `reboot`
-- `request_identity`
-- `set_debug_mode`
+- publish to `vts/devices/{deviceId}/commands`
+- `interval` is in milliseconds
+- firmware accepts values from `1000` to `60000`
+- malformed or unsupported payloads must be ignored safely
+- firmware logs the modem response and the received payload for debugging
+
+Current ACK contract:
+
+```json
+{
+  "type": "ack",
+  "status": "success",
+  "interval": 10000
+}
+```
+
+ACK rules:
+
+- firmware publishes ACK to `vts/devices/{deviceId}/ack`
+- ACK is emitted only after a valid config update is applied
+- ACK uses the same MQTT broker instance as telemetry and identity
+
+Future extensibility:
+
+- additional command types such as reboot or request-identity can be added later
+- new command types should keep the same topic and include a stable `type` field
 
 ## Retry, Queue, Offline Rules
 

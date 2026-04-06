@@ -12,6 +12,8 @@ Firmware must:
 - read ignition state
 - know its `deviceId`
 - send telemetry at a configurable interval
+- receive backend commands over MQTT
+- apply supported runtime configuration updates without reflashing
 - send identity on boot/reconnect
 - queue data when offline
 - retry publishing when connectivity returns
@@ -93,6 +95,12 @@ Current sample firmware in [Firmware/src/main.cpp](/home/user/Desktop/Maddy Git/
 - publishes old-backend-compatible telemetry to `vts/devices/{deviceId}/telemetry`
 - emits the old backend payload fields: `device_id`, `timestamp`, `lat`, `lon`, `speed_kmph`, `ignition`, `battery_mv`, `signal_dbm`
 - publishes identity on MQTT connect to `vts/devices/{deviceId}/identity`
+- subscribes on MQTT connect to `vts/devices/{deviceId}/commands`
+- parses `+QMTRECV` modem notifications to receive downlink commands
+- supports runtime `config_update` commands to change `gps_poll_interval_ms`
+- validates interval updates to the range `1000` to `60000` ms
+- publishes success ACKs to `vts/devices/{deviceId}/ack`
+- uses `millis()` scheduling instead of a fixed blocking delay so interval changes apply immediately
 - keeps a bounded in-memory oldest-first queue when telemetry publish fails
 - logs broker, port, client id, and MQTT topics at boot/connect time
 - fails loudly when `MQTT_BROKER` is blank, placeholder, or loopback-only

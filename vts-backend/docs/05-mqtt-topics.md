@@ -7,7 +7,11 @@
 > Note: The Docker Compose file in this repo does not start Mosquitto. Run a broker locally or in a separate container if needed.
 
 ## Topics
-- Subscribe: `vts/+/telemetry`
+- Backend subscribe: `vts/devices/+/telemetry`
+- Firmware publish: `vts/devices/{deviceId}/telemetry`
+- Firmware identity: `vts/devices/{deviceId}/identity`
+- Firmware command subscribe: `vts/devices/{deviceId}/commands`
+- Firmware ACK publish: `vts/devices/{deviceId}/ack`
 
 ## Payload format
 Example payload accepted by `TelemetryHandler`:
@@ -39,7 +43,7 @@ Example payload accepted by `TelemetryHandler`:
 
 ### Using `mosquitto_pub` (local host)
 ```bash
-mosquitto_pub -h localhost -p 1883 -t "vts/VTU_001/telemetry" -m '{
+mosquitto_pub -h localhost -p 1883 -t "vts/devices/VTU_001/telemetry" -m '{
   "device_id":"VTU_001",
   "timestamp":"2026-03-10T10:00:00Z",
   "lat":11.2588,
@@ -58,7 +62,7 @@ import mqtt from 'mqtt'
 
 const client = mqtt.connect('mqtt://localhost:1883')
 client.on('connect', () => {
-  client.publish('vts/VTU_001/telemetry', JSON.stringify({
+  client.publish('vts/devices/VTU_001/telemetry', JSON.stringify({
     device_id: 'VTU_001',
     timestamp: new Date().toISOString(),
     lat: 11.2588,
@@ -86,6 +90,32 @@ Environment overrides:
 - `SIM_BASE_LAT`, `SIM_BASE_LON`
 
 ### Notes
-- Topic format: `vts/<deviceId>/telemetry`
+- Topic format: `vts/devices/<deviceId>/telemetry`
 - `device_id` should match the topic `<deviceId>`.
 - `ignition` is optional; if omitted, the backend assumes `true`.
+
+## Two-way firmware testing
+
+The current backend consumes telemetry from MQTT but does not yet publish control commands on its own. To test device downlink, publish a command manually to the same broker instance the firmware uses.
+
+Subscribe to ACKs:
+
+```bash
+mosquitto_sub -h localhost -p 1883 -t "vts/devices/VTU_001/ack" -v
+```
+
+Send a config update:
+
+```bash
+mosquitto_pub -h localhost -p 1883 -t "vts/devices/VTU_001/commands" -m '{
+  "type":"config_update",
+  "interval":10000
+}'
+```
+
+Expected result:
+
+- firmware logs the incoming `+QMTRECV`
+- firmware prints `Telemetry interval updated to 10000 ms`
+- firmware publishes `{"type":"ack","status":"success","interval":10000}` to `vts/devices/VTU_001/ack`
+- next telemetry publishes follow the new interval
