@@ -42,8 +42,12 @@ export class DevicesController {
   @ApiOperation({ summary: 'Create device' })
   @ApiResponse({ status: 200 })
   @Post()
-  async create(@Body() payload: CreateDeviceDto, @CurrentUser() user: AuthenticatedUser) {
-    const device = await this.devicesService.create(payload, user)
+  async create(
+    @Body() payload: CreateDeviceDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('collegeId') collegeId?: string,
+  ) {
+    const device = await this.devicesService.create(payload, user, collegeId)
     return { success: true, message: 'Device created', device }
   }
 

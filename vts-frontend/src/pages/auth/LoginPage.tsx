@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { FiActivity, FiLock, FiMail, FiMapPin, FiShield } from 'react-icons/fi'
+import { FiActivity, FiEye, FiEyeOff, FiLock, FiMail, FiMapPin, FiShield } from 'react-icons/fi'
 import { useAuthStore } from '@store/authStore'
 
 export function LoginPage() {
@@ -12,6 +12,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   const canSubmit = useMemo(
     () => Boolean(email.trim()) && Boolean(password.trim()) && !isLoading,
@@ -126,13 +127,21 @@ export function LoginPage() {
               <div className='relative'>
                 <FiLock className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400' size={16} />
                 <input
-                  type='password'
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder='Enter your password'
                   autoComplete='current-password'
-                  className='w-full rounded-xl border border-white/15 bg-slate-950/60 px-10 py-3 text-sm text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-400/30'
+                  className='w-full rounded-xl border border-white/15 bg-slate-950/60 px-10 py-3 pr-11 text-sm text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-400/30'
                 />
+                <button
+                  type='button'
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className='absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center text-slate-400 transition hover:text-cyan-200'
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                </button>
               </div>
             </label>
 

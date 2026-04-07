@@ -162,6 +162,14 @@ export const appRouter = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      {
+        path: 'admin/colleges/:id/edit',
+        element: (
+          <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+            <CollegeDetailsPage />
+          </ProtectedRoute>
+        ),
+      },
     ],
   },
   {

@@ -6,9 +6,14 @@ import { useCollegeFilterStore } from '@store/collegeFilterStore'
 type CollegeScopeSelectorProps = {
   className?: string
   compact?: boolean
+  helperText?: string
 }
 
-export function CollegeScopeSelector({ className = '', compact = false }: CollegeScopeSelectorProps) {
+export function CollegeScopeSelector({
+  className = '',
+  compact = false,
+  helperText,
+}: CollegeScopeSelectorProps) {
   const role = useAuthStore((state) => state.role)
   const selectedCollegeId = useCollegeFilterStore((state) => state.selectedCollegeId)
   const setSelectedCollegeId = useCollegeFilterStore((state) => state.setSelectedCollegeId)
@@ -68,7 +73,7 @@ export function CollegeScopeSelector({ className = '', compact = false }: Colleg
       </select>
       {!compact ? (
         <span className='text-xs text-slate-500 dark:text-slate-400'>
-          {selectedCollegeName ? `Scoped to ${selectedCollegeName}` : 'Scoped pages require a college selection.'}
+          {selectedCollegeName ? `Scoped to ${selectedCollegeName}` : helperText ?? 'Scoped pages require a college selection.'}
         </span>
       ) : null}
     </div>

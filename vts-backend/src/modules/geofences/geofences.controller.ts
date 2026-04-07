@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { GeofencesService } from './geofences.service'
 import { CreateGeofenceDto } from './dto/create-geofence.dto'
@@ -19,8 +19,15 @@ export class GeofencesController {
   @ApiOperation({ summary: 'List geofences' })
   @ApiResponse({ status: 200 })
   @Get()
-  async list(@CurrentUser() user: AuthenticatedUser) {
-    return this.geofencesService.findAll(user)
+  async list(@CurrentUser() user: AuthenticatedUser, @Query('collegeId') collegeId?: string) {
+    return this.geofencesService.findAll(user, collegeId)
+  }
+
+  @ApiOperation({ summary: 'Get geofence by id' })
+  @ApiResponse({ status: 200 })
+  @Get('stops')
+  async stops(@CurrentUser() user: AuthenticatedUser, @Query('collegeId') collegeId?: string) {
+    return this.geofencesService.listStops(user, collegeId)
   }
 
   @ApiOperation({ summary: 'Get geofence by id' })
@@ -34,8 +41,12 @@ export class GeofencesController {
   @ApiResponse({ status: 200 })
   @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Post()
-  async create(@Body() payload: CreateGeofenceDto, @CurrentUser() user: AuthenticatedUser) {
-    const geofence = await this.geofencesService.create(payload, user)
+  async create(
+    @Body() payload: CreateGeofenceDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('collegeId') collegeId?: string,
+  ) {
+    const geofence = await this.geofencesService.create(payload, user, collegeId)
     return { success: true, message: 'Geofence created', geofence }
   }
 
@@ -55,12 +66,5 @@ export class GeofencesController {
   async remove(@Param('geofenceId') geofenceId: string, @CurrentUser() user: AuthenticatedUser) {
     await this.geofencesService.remove(geofenceId, user)
     return { success: true, message: 'Geofence deleted' }
-  }
-
-  @ApiOperation({ summary: 'List stop geofences' })
-  @ApiResponse({ status: 200 })
-  @Get('stops')
-  async stops(@CurrentUser() user: AuthenticatedUser) {
-    return this.geofencesService.listStops(user)
   }
 }

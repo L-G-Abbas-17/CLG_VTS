@@ -1,4 +1,5 @@
 import type { UserRole } from '@services/authService'
+import { getActiveCollegeFilterId } from '@utils/collegeScope'
 
 export type AppPage =
   | '/dashboard'
@@ -20,14 +21,26 @@ const studentHiddenPages = new Set<AppPage>(['/devices', '/telemetry', '/users',
 const superAdminOnlyPages = new Set<AppPage>(['/admin/colleges'])
 
 export function canCreate(role: UserRole | null): boolean {
+  if (role === 'SUPER_ADMIN') {
+    return Boolean(getActiveCollegeFilterId())
+  }
+
   return role !== 'STUDENT' && role !== null
 }
 
 export function canEdit(role: UserRole | null): boolean {
+  if (role === 'SUPER_ADMIN') {
+    return Boolean(getActiveCollegeFilterId())
+  }
+
   return role !== 'STUDENT' && role !== null
 }
 
 export function canDelete(role: UserRole | null): boolean {
+  if (role === 'SUPER_ADMIN') {
+    return Boolean(getActiveCollegeFilterId())
+  }
+
   return role !== 'STUDENT' && role !== null
 }
 

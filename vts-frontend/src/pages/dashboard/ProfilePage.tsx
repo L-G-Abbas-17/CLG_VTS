@@ -43,8 +43,6 @@ export function ProfilePage() {
     return <div className='mx-auto w-full max-w-7xl'>Loading profile...</div>
   }
 
-  const canChangePassword = profile.role !== 'FLEET_MANAGER' && profile.role !== 'STUDENT'
-
   return (
     <div className='mx-auto w-full max-w-7xl space-y-5'>
       <section className='rounded-2xl border border-white/30 bg-white/55 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
@@ -56,7 +54,7 @@ export function ProfilePage() {
 
       <PreferencesCard timezone={timezone} preferences={preferences} onSave={handleSavePreferences} />
 
-      {canChangePassword ? <ChangePasswordForm onSubmit={handleChangePassword} /> : null}
+      <ChangePasswordForm onSubmit={handleChangePassword} />
     </div>
   )
 }

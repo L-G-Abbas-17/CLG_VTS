@@ -1,8 +1,9 @@
 import type { TelemetryPoint, Trip, Vehicle, VehicleStatusCounts, VehicleType } from '../types/vehicle'
 import { apiClient } from '../api/apiClient'
-import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege, getActiveCollegeFilterId } from '@utils/collegeScope'
 
 export type CreateVehicleInput = {
+  collegeId?: string
   vehicleName: string
   vehicleType: VehicleType
   deviceId?: string
@@ -43,6 +44,7 @@ export type VehicleListParams = {
   status?: Vehicle['status']
   fromDate?: string
   toDate?: string
+  ignoreActiveCollegeScope?: boolean
 }
 
 export type PaginatedResponse<T> = {
@@ -115,7 +117,9 @@ class VehicleService {
     if (params?.toDate) searchParams.set('toDate', params.toDate)
 
     const suffix = searchParams.toString()
-    return buildCollegeScopedPath(suffix ? `/vehicles?${suffix}` : '/vehicles')
+    return buildCollegeScopedPath(suffix ? `/vehicles?${suffix}` : '/vehicles', {
+      ignoreActiveCollegeScope: params?.ignoreActiveCollegeScope,
+    })
   }
 
   async getVehiclesPage(params?: VehicleListParams): Promise<PaginatedResponse<Vehicle>> {
@@ -123,7 +127,7 @@ class VehicleService {
 
     return {
       ...response,
-      data: filterByActiveCollege(response.data).map(normalizeVehicle),
+      data: (params?.ignoreActiveCollegeScope ? response.data : filterByActiveCollege(response.data)).map(normalizeVehicle),
     }
   }
 
@@ -158,7 +162,9 @@ class VehicleService {
   }
 
   async createVehicle(vehicleData: CreateVehicleInput): Promise<CreateVehicleResponse> {
-    const response = await apiClient.post<CreateVehicleResponse>('/vehicles', {
+    const response = await apiClient.post<CreateVehicleResponse>(buildCollegeScopedPath('/vehicles', {
+      collegeId: vehicleData.collegeId ?? getActiveCollegeFilterId(),
+    }), {
       vehicleName: vehicleData.vehicleName,
       vehicleType: vehicleData.vehicleType,
       deviceId: vehicleData.deviceId,

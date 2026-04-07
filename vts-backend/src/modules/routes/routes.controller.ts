@@ -41,8 +41,12 @@ export class RoutesController {
   @ApiResponse({ status: 200 })
   @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Post()
-  async create(@Body() payload: CreateRouteDto, @CurrentUser() user: AuthenticatedUser) {
-    const route = await this.routesService.create(payload, user)
+  async create(
+    @Body() payload: CreateRouteDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('collegeId') collegeId?: string,
+  ) {
+    const route = await this.routesService.create(payload, user, collegeId)
     return { success: true, message: 'Route created', route }
   }
 

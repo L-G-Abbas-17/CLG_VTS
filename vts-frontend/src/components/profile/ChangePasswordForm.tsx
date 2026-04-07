@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { FiEye, FiEyeOff } from 'react-icons/fi'
 
 type ChangePasswordFormProps = {
   onSubmit?: (payload: { currentPassword: string; newPassword: string }) => Promise<void> | void
@@ -11,6 +12,9 @@ export function ChangePasswordForm({ onSubmit }: ChangePasswordFormProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const handleUpdate = async () => {
     setError('')
@@ -26,10 +30,15 @@ export function ChangePasswordForm({ onSubmit }: ChangePasswordFormProps) {
       return
     }
 
+    if (newPassword.length < 6) {
+      setError('New password must be at least 6 characters.')
+      return
+    }
+
     setIsSaving(true)
     try {
       await onSubmit?.({ currentPassword, newPassword })
-      setMessage('Password updated.')
+      setMessage('Password updated successfully.')
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
@@ -50,32 +59,62 @@ export function ChangePasswordForm({ onSubmit }: ChangePasswordFormProps) {
       <div className='grid grid-cols-1 gap-4'>
         <label className='space-y-1'>
           <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>Current Password</span>
-          <input
-            type='password'
-            value={currentPassword}
-            onChange={(event) => setCurrentPassword(event.target.value)}
-            className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
-          />
+          <div className='relative'>
+            <input
+              type={showCurrentPassword ? 'text' : 'password'}
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 pr-11 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
+            />
+            <button
+              type='button'
+              onClick={() => setShowCurrentPassword((prev) => !prev)}
+              className='absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center text-slate-500 transition hover:text-slate-700 dark:text-slate-300 dark:hover:text-cyan-300'
+              aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+            >
+              {showCurrentPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+            </button>
+          </div>
         </label>
 
         <label className='space-y-1'>
           <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>New Password</span>
-          <input
-            type='password'
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-            className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
-          />
+          <div className='relative'>
+            <input
+              type={showNewPassword ? 'text' : 'password'}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 pr-11 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
+            />
+            <button
+              type='button'
+              onClick={() => setShowNewPassword((prev) => !prev)}
+              className='absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center text-slate-500 transition hover:text-slate-700 dark:text-slate-300 dark:hover:text-cyan-300'
+              aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+            >
+              {showNewPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+            </button>
+          </div>
         </label>
 
         <label className='space-y-1'>
           <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>Confirm Password</span>
-          <input
-            type='password'
-            value={confirmPassword}
-            onChange={(event) => setConfirmPassword(event.target.value)}
-            className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
-          />
+          <div className='relative'>
+            <input
+              type={showConfirmPassword ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 pr-11 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
+            />
+            <button
+              type='button'
+              onClick={() => setShowConfirmPassword((prev) => !prev)}
+              className='absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center text-slate-500 transition hover:text-slate-700 dark:text-slate-300 dark:hover:text-cyan-300'
+              aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+            >
+              {showConfirmPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+            </button>
+          </div>
         </label>
       </div>
 

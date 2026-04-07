@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm'
 
-export type CollegeStatus = 'active' | 'inactive'
+export type CollegeStatus = 'active' | 'inactive' | 'delete_pending'
 
 @Entity({ name: 'colleges' })
 export class College {

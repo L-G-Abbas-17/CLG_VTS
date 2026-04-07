@@ -6,7 +6,12 @@ import { CreateDeviceDto } from './dto/create-device.dto'
 import { UpdateDeviceDto } from './dto/update-device.dto'
 import { Vehicle } from '../vehicles/vehicle.entity'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
-import { assertTenantAccess, mergeCollegeWhere, mergeRequestedCollegeWhere, requireCollegeScope } from '../../common/tenant/tenant-scope'
+import {
+  assertTenantAccess,
+  mergeCollegeWhere,
+  mergeRequestedCollegeWhere,
+  requireWritableCollegeScope,
+} from '../../common/tenant/tenant-scope'
 
 @Injectable()
 export class DevicesService {
@@ -60,7 +65,7 @@ export class DevicesService {
     return device
   }
 
-  async create(payload: CreateDeviceDto, actor: AuthenticatedUser): Promise<Device> {
+  async create(payload: CreateDeviceDto, actor: AuthenticatedUser, collegeId?: string | null): Promise<Device> {
     const deviceId = payload.deviceId.trim()
     const imei = payload.imei.trim()
 
@@ -75,7 +80,7 @@ export class DevicesService {
     }
 
     const device = this.deviceRepo.create({
-      collegeId: requireCollegeScope(actor),
+      collegeId: requireWritableCollegeScope(actor, collegeId),
       deviceId,
       imei,
       status: 'unassigned',

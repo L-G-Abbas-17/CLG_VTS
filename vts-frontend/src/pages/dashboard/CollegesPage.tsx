@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FiArrowRight, FiEdit2, FiPlus } from 'react-icons/fi'
+import { FiArrowRight, FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 import { collegeService, type CollegeSummary } from '@services/collegeService'
 
@@ -17,6 +17,8 @@ export function CollegesPage() {
   const [adminEmail, setAdminEmail] = useState('')
   const [createError, setCreateError] = useState('')
   const [createSuccess, setCreateSuccess] = useState('')
+  const [rowActionError, setRowActionError] = useState('')
+  const [requestingDeleteId, setRequestingDeleteId] = useState<string | null>(null)
 
   const loadColleges = async () => {
     setIsLoading(true)
@@ -79,6 +81,46 @@ export function CollegesPage() {
     } finally {
       setIsCreating(false)
     }
+  }
+
+  const handleRequestDelete = async (college: CollegeSummary) => {
+    if (college.status === 'delete_pending') {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Request deletion for ${college.name}? The assigned college admin will need to approve or reject it.`,
+    )
+    if (!confirmed) {
+      return
+    }
+
+    setRowActionError('')
+    setRequestingDeleteId(college.id)
+    try {
+      const response = await collegeService.requestDeleteCollege(college.id)
+      setColleges((current) => current.map((item) => (item.id === college.id ? response.college : item)))
+    } catch (error) {
+      setRowActionError(error instanceof Error ? error.message : 'Failed to request college deletion.')
+    } finally {
+      setRequestingDeleteId(null)
+    }
+  }
+
+  const renderStatusBadge = (status: CollegeSummary['status']) => {
+    if (status === 'delete_pending') {
+      return (
+        <span className='rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold uppercase text-rose-700 dark:bg-rose-950/50 dark:text-rose-200'>
+          Delete Request Pending
+        </span>
+      )
+    }
+
+    return (
+      <span className='rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200'>
+        {status}
+      </span>
+    )
   }
 
   return (
@@ -183,6 +225,12 @@ export function CollegesPage() {
             {createSuccess}
           </div>
         ) : null}
+
+        {rowActionError ? (
+          <div className='mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300'>
+            {rowActionError}
+          </div>
+        ) : null}
       </section>
 
       {isLoading ? (
@@ -218,9 +266,7 @@ export function CollegesPage() {
                       </div>
                     </td>
                     <td className='px-4 py-4'>
-                      <span className='rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200'>
-                        {college.status}
-                      </span>
+                      {renderStatusBadge(college.status)}
                     </td>
                     <td className='px-4 py-4'>
                       <div className='flex flex-wrap gap-2'>
@@ -234,11 +280,27 @@ export function CollegesPage() {
                         </button>
                         <button
                           type='button'
-                          onClick={() => navigate(`/admin/colleges/${college.id}`)}
-                          className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
+                          onClick={() => navigate(`/admin/colleges/${college.id}/edit`)}
+                          disabled={college.status === 'delete_pending'}
+                          className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
                         >
                           <FiEdit2 size={14} />
                           Edit
+                        </button>
+                        <button
+                          type='button'
+                          onClick={() => void handleRequestDelete(college)}
+                          disabled={college.status !== 'active' || requestingDeleteId === college.id}
+                          className='inline-flex items-center gap-2 rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60'
+                        >
+                          <FiTrash2 size={14} />
+                          {college.status === 'delete_pending'
+                            ? 'Pending'
+                            : college.status !== 'active'
+                              ? 'Unavailable'
+                            : requestingDeleteId === college.id
+                              ? 'Requesting...'
+                              : 'Delete'}
                         </button>
                       </div>
                     </td>

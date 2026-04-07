@@ -1,13 +1,26 @@
 import { useEffect, useState } from 'react'
 import { FiArrowLeft, FiSave } from 'react-icons/fi'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { collegeService, type CollegeDetails } from '@services/collegeService'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+function DetailField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className='space-y-2'>
+      <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>{label}</span>
+      <div className='rounded-xl border border-slate-200 bg-slate-50/90 px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-100'>
+        {value || 'Not available'}
+      </div>
+    </div>
+  )
+}
+
 export function CollegeDetailsPage() {
+  const location = useLocation()
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
+  const isEditMode = location.pathname.endsWith('/edit')
   const [college, setCollege] = useState<CollegeDetails | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -17,6 +30,7 @@ export function CollegeDetailsPage() {
   const [adminEmail, setAdminEmail] = useState('')
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const isDeletePending = college?.status === 'delete_pending'
 
   useEffect(() => {
     if (!id) {
@@ -29,7 +43,7 @@ export function CollegeDetailsPage() {
         const collegeData = await collegeService.getCollegeById(id)
         setCollege(collegeData)
         setName(collegeData.name)
-        setStatus(collegeData.status)
+        setStatus(collegeData.status === 'active' ? 'active' : 'inactive')
         setAdminName(collegeData.admin?.name ?? '')
         setAdminEmail(collegeData.admin?.email ?? '')
       } finally {
@@ -72,7 +86,7 @@ export function CollegeDetailsPage() {
 
       setCollege(response.college)
       setName(response.college.name)
-      setStatus(response.college.status)
+      setStatus(response.college.status === 'active' ? 'active' : 'inactive')
       setAdminName(response.college.admin?.name ?? normalizedAdminName)
       setAdminEmail(response.college.admin?.email ?? normalizedAdminEmail)
       setSuccessMessage(
@@ -118,21 +132,31 @@ export function CollegeDetailsPage() {
             </button>
             <h2 className='mt-3 text-lg font-semibold text-slate-900 dark:text-slate-100'>{college.name}</h2>
             <p className='text-sm text-slate-600 dark:text-slate-300'>
-              Global super admin view. Selected college scope does not affect this page.
+              {isEditMode
+                ? 'Edit college details and the assigned college admin.'
+                : 'Read-only college details. Use Edit from the list page to make changes.'}
             </p>
           </div>
 
-          <button
-            type='button'
-            onClick={() => void handleSave()}
-            disabled={isSaving}
-            className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
-          >
-            <FiSave size={16} />
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </button>
+          {isEditMode ? (
+            <button
+              type='button'
+              onClick={() => void handleSave()}
+              disabled={isSaving || isDeletePending}
+              className='inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
+            >
+              <FiSave size={16} />
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
+          ) : null}
         </div>
       </section>
+
+      {isDeletePending ? (
+        <div className='rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300'>
+          Delete request pending. Editing is disabled until the college admin approves or rejects the request.
+        </div>
+      ) : null}
 
       {error ? (
         <div className='rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300'>
@@ -150,50 +174,72 @@ export function CollegeDetailsPage() {
         <div className='rounded-2xl border border-white/30 bg-white/60 p-5 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
           <h3 className='text-base font-semibold text-slate-900 dark:text-slate-100'>College Details</h3>
           <div className='mt-4 grid gap-4'>
-            <label className='space-y-2'>
-              <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>College Name</span>
-              <input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
-              />
-            </label>
+            {isEditMode ? (
+              <>
+                <label className='space-y-2'>
+                  <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>College Name</span>
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    disabled={isDeletePending}
+                    className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
+                  />
+                </label>
 
-            <label className='space-y-2'>
-              <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>Status</span>
-              <select
-                value={status}
-                onChange={(event) => setStatus(event.target.value as 'active' | 'inactive')}
-                className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
-              >
-                <option value='active'>active</option>
-                <option value='inactive'>inactive</option>
-              </select>
-            </label>
+                <label className='space-y-2'>
+                  <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>Status</span>
+                  <select
+                    value={status}
+                    onChange={(event) => setStatus(event.target.value as 'active' | 'inactive')}
+                    disabled={isDeletePending}
+                    className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
+                  >
+                    <option value='active'>active</option>
+                    <option value='inactive'>inactive</option>
+                  </select>
+                </label>
+              </>
+            ) : (
+              <>
+                <DetailField label='College Name' value={name} />
+                <DetailField label='Status' value={status} />
+              </>
+            )}
           </div>
         </div>
 
         <div className='rounded-2xl border border-white/30 bg-white/60 p-5 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
           <h3 className='text-base font-semibold text-slate-900 dark:text-slate-100'>College Admin Details</h3>
           <div className='mt-4 grid gap-4'>
-            <label className='space-y-2'>
-              <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>Admin Name</span>
-              <input
-                value={adminName}
-                onChange={(event) => setAdminName(event.target.value)}
-                className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
-              />
-            </label>
+            {isEditMode ? (
+              <>
+                <label className='space-y-2'>
+                  <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>Admin Name</span>
+                  <input
+                    value={adminName}
+                    onChange={(event) => setAdminName(event.target.value)}
+                    disabled={isDeletePending}
+                    className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
+                  />
+                </label>
 
-            <label className='space-y-2'>
-              <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>Admin Email</span>
-              <input
-                type='email'
-                value={adminEmail}
-                onChange={(event) => setAdminEmail(event.target.value)}
-                className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
-              />
-            </label>
+                <label className='space-y-2'>
+                  <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>Admin Email</span>
+                  <input
+                    type='email'
+                    value={adminEmail}
+                    onChange={(event) => setAdminEmail(event.target.value)}
+                    disabled={isDeletePending}
+                    className='w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <DetailField label='Admin Name' value={adminName} />
+                <DetailField label='Admin Email' value={adminEmail} />
+              </>
+            )}
           </div>
         </div>
       </section>

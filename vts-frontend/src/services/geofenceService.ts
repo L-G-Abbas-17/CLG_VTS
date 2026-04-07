@@ -1,8 +1,9 @@
 import type { Geofence } from '../types/geofence'
 import { apiClient } from '../api/apiClient'
-import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege, getActiveCollegeFilterId } from '@utils/collegeScope'
 
 export type CreateGeofenceInput = {
+  collegeId?: string
   name: string
   address: string
   lat: number
@@ -40,7 +41,7 @@ function mapGeofenceToStop(geofence: Partial<Geofence> & { id?: string; name?: s
 
 export async function fetchStops(): Promise<Stop[]> {
   try {
-    const response = await apiClient.get<unknown>(buildCollegeScopedPath('/geofences?isStop=true'))
+    const response = await apiClient.get<unknown>(buildCollegeScopedPath('/geofences/stops'))
 
     if (!Array.isArray(response)) {
       console.error('Invalid stops response', response)
@@ -72,7 +73,10 @@ class GeofenceService {
   async createGeofence(
     geofenceData: CreateGeofenceInput,
   ): Promise<{ success: true; message: string; geofence: Geofence }> {
-    return apiClient.post<{ success: true; message: string; geofence: Geofence }>('/geofences', geofenceData)
+    return apiClient.post<{ success: true; message: string; geofence: Geofence }>(
+      buildCollegeScopedPath('/geofences', { collegeId: geofenceData.collegeId ?? getActiveCollegeFilterId() }),
+      geofenceData,
+    )
   }
 
   async updateGeofence(

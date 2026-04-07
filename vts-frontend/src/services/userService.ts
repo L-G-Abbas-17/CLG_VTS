@@ -1,8 +1,9 @@
 import type { UserRole } from './authService'
 import { apiClient } from '../api/apiClient'
-import { buildCollegeScopedPath } from '@utils/collegeScope'
+import { buildCollegeScopedPath, isSuperAdminCollegeScopeRequired } from '@utils/collegeScope'
 
 export type UserStatus = 'active' | 'disabled'
+export type ManageableUserRole = 'FLEET_MANAGER' | 'STUDENT'
 
 export type UserRecord = {
   id: string
@@ -19,13 +20,12 @@ export type CreateUserInput = {
   name: string
   email: string
   password: string
-  role: UserRole
+  role: ManageableUserRole
   collegeId?: string
-  collegeName?: string
 }
 
 export type UpdateUserInput = Partial<Omit<UserRecord, 'id' | 'email' | 'createdAt'>> & {
-  collegeName?: string
+  role?: ManageableUserRole
 }
 
 export type UserListParams = {
@@ -36,6 +36,10 @@ export type UserListParams = {
 
 class UserService {
   async getUsers(params?: UserListParams): Promise<UserRecord[]> {
+    if (!params?.ignoreActiveCollegeScope && isSuperAdminCollegeScopeRequired()) {
+      return []
+    }
+
     const searchParams = new URLSearchParams()
     if (params?.collegeId) searchParams.set('collegeId', params.collegeId)
     if (params?.role) searchParams.set('role', params.role)

@@ -15,7 +15,7 @@ import {
   assertTenantAccess,
   mergeCollegeWhere,
   mergeRequestedCollegeWhere,
-  requireCollegeScope,
+  requireWritableCollegeScope,
 } from '../../common/tenant/tenant-scope'
 import { ListVehiclesDto } from './dto/list-vehicles.dto'
 
@@ -98,9 +98,9 @@ export class VehiclesService {
     return vehicle
   }
 
-  async create(payload: CreateVehicleDto, actor: AuthenticatedUser): Promise<Vehicle> {
+  async create(payload: CreateVehicleDto, actor: AuthenticatedUser, collegeId?: string | null): Promise<Vehicle> {
     const next = this.vehicleRepo.create({
-      collegeId: requireCollegeScope(actor),
+      collegeId: requireWritableCollegeScope(actor, collegeId),
       registrationNumber: `VTS-${Date.now()}`,
       vehicleName: payload.vehicleName,
       vehicleType: payload.vehicleType,

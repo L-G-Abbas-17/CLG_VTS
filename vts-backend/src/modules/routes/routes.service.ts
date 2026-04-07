@@ -11,7 +11,7 @@ import {
   assertTenantAccess,
   mergeCollegeWhere,
   mergeRequestedCollegeWhere,
-  requireCollegeScope,
+  requireWritableCollegeScope,
 } from '../../common/tenant/tenant-scope'
 
 @Injectable()
@@ -46,9 +46,9 @@ export class RoutesService {
     return route
   }
 
-  async create(payload: CreateRouteDto, actor: AuthenticatedUser): Promise<Route> {
+  async create(payload: CreateRouteDto, actor: AuthenticatedUser, collegeId?: string | null): Promise<Route> {
     const route = this.routeRepo.create({
-      collegeId: requireCollegeScope(actor),
+      collegeId: requireWritableCollegeScope(actor, collegeId),
       name: payload.name,
       startStop: payload.startStop,
       endStop: payload.endStop,

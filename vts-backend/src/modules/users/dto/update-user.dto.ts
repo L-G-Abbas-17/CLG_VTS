@@ -11,17 +11,12 @@ export class UpdateUserDto {
   @ApiPropertyOptional({
     example: 'FLEET_MANAGER',
     description: 'User role',
-    enum: ['SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER', 'STUDENT'],
+    enum: ['FLEET_MANAGER', 'STUDENT'],
   })
   @IsOptional()
   @IsString()
-  @IsIn(['SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER', 'STUDENT'])
+  @IsIn(['FLEET_MANAGER', 'STUDENT'])
   role?: UserRole
-
-  @ApiPropertyOptional({ example: 'Oxford College', description: 'College name' })
-  @IsOptional()
-  @IsString()
-  collegeName?: string
 
   @ApiPropertyOptional({ example: 'ae0cc126-df8a-4f57-89f7-a0d8115d2eb2', description: 'College identifier' })
   @IsOptional()

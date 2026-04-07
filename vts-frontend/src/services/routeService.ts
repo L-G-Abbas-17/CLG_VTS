@@ -1,7 +1,7 @@
 import type { Route, RouteStop } from '../types/route'
 import type { Vehicle } from '../types/vehicle'
 import { apiClient } from '../api/apiClient'
-import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege, getActiveCollegeFilterId } from '@utils/collegeScope'
 
 export type DeleteRouteResponse = {
   success: true
@@ -22,6 +22,7 @@ export type UpdateRouteResponse = {
 }
 
 export type CreateRouteInput = {
+  collegeId?: string
   name: string
   startStop: RouteStop
   endStop: RouteStop
@@ -49,7 +50,10 @@ class RouteService {
   }
 
   async createRoute(routeData: CreateRouteInput): Promise<CreateRouteResponse> {
-    return apiClient.post<CreateRouteResponse>('/routes', routeData)
+    return apiClient.post<CreateRouteResponse>(
+      buildCollegeScopedPath('/routes', { collegeId: routeData.collegeId ?? getActiveCollegeFilterId() }),
+      routeData,
+    )
   }
 
   async updateRoute(routeId: string, updatedData: UpdateRouteInput): Promise<UpdateRouteResponse> {

@@ -92,25 +92,10 @@ export class UsersService {
     }
   }
 
-  private async findOrCreateCollegeByName(name: string): Promise<College> {
-    const normalized = name.trim()
-    let college = await this.collegesRepo.findOne({ where: { name: normalized } })
-    if (college) {
-      return college
-    }
-
-    college = this.collegesRepo.create({
-      name: normalized,
-      status: 'active',
-    })
-
-    return this.collegesRepo.save(college)
-  }
-
   private getAllowedCreateRoles(actorRole: AuthenticatedUser['role']): Array<CreateUserDto['role']> {
     switch (actorRole) {
       case 'SUPER_ADMIN':
-        return ['SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER', 'STUDENT']
+        return ['FLEET_MANAGER', 'STUDENT']
       case 'COLLEGE_ADMIN':
         return ['FLEET_MANAGER', 'STUDENT']
       case 'FLEET_MANAGER':
@@ -120,6 +105,28 @@ export class UsersService {
       default:
         throw new ForbiddenException('You are not authorized to create this role.')
     }
+  }
+
+  private getAllowedUpdateRoles(actorRole: AuthenticatedUser['role']): Array<NonNullable<UpdateUserDto['role']>> {
+    switch (actorRole) {
+      case 'SUPER_ADMIN':
+        return ['FLEET_MANAGER', 'STUDENT']
+      case 'COLLEGE_ADMIN':
+        return ['FLEET_MANAGER', 'STUDENT']
+      case 'FLEET_MANAGER':
+        return ['STUDENT']
+      default:
+        return []
+    }
+  }
+
+  private async assertCollegeExists(collegeId: string): Promise<string> {
+    const college = await this.collegesRepo.findOne({ where: { id: collegeId } })
+    if (!college) {
+      throw new NotFoundException('College not found')
+    }
+
+    return college.id
   }
 
   private async resolveCollegeIdForCreate(payload: CreateUserDto, actor: AuthenticatedUser): Promise<string | null> {
@@ -132,24 +139,11 @@ export class UsersService {
       return requireCollegeScope(actor)
     }
 
-    if (payload.role === 'SUPER_ADMIN') {
-      return null
-    }
-
     if (payload.collegeId) {
-      const college = await this.collegesRepo.findOne({ where: { id: payload.collegeId } })
-      if (!college) {
-        throw new NotFoundException('College not found')
-      }
-      return college.id
+      return this.assertCollegeExists(payload.collegeId)
     }
 
-    if (payload.collegeName?.trim()) {
-      const college = await this.findOrCreateCollegeByName(payload.collegeName)
-      return college.id
-    }
-
-    throw new ForbiddenException('collegeId or collegeName is required for non-SUPER_ADMIN users')
+    throw new ForbiddenException('Super admin must select a college before creating users.')
   }
 
   async create(payload: CreateUserDto, actor: AuthenticatedUser): Promise<User> {
@@ -168,18 +162,26 @@ export class UsersService {
 
   async update(id: string, payload: UpdateUserDto, actor: AuthenticatedUser): Promise<User> {
     const user = await this.findById(id, actor)
-    const nextCollegeId =
-      payload.collegeName?.trim()
-        ? (await this.findOrCreateCollegeByName(payload.collegeName)).id
-        : payload.collegeId
+    this.assertUserManagementAccess(user, actor)
+
+    if (payload.role) {
+      const allowedRoles = this.getAllowedUpdateRoles(actor.role)
+      if (!allowedRoles.includes(payload.role)) {
+        throw new ForbiddenException('You are not authorized to assign this role.')
+      }
+    }
 
     Object.assign(user, {
       ...payload,
-      collegeId: nextCollegeId ?? user.collegeId,
+      collegeId: payload.collegeId ?? user.collegeId,
     })
 
     if (!isSuperAdmin(actor)) {
       user.collegeId = requireCollegeScope(actor)
+    } else if (payload.collegeId) {
+      user.collegeId = await this.assertCollegeExists(payload.collegeId)
+    } else if (!user.collegeId) {
+      throw new ForbiddenException('Super admin must manage users within a selected college scope.')
     }
 
     return this.usersRepo.save(user)

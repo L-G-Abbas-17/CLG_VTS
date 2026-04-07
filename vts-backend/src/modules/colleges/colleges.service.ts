@@ -10,6 +10,7 @@ import { collegeHasRelatedData } from './college-lifecycle.util'
 import { User } from '../users/user.entity'
 import { UpdateCollegeDto } from './dto/update-college.dto'
 import { hashPassword } from '../../common/utils/password.util'
+import type { CollegeStatus } from './college.entity'
 
 type CollegeAdminSummary = {
   id: string
@@ -21,7 +22,7 @@ type CollegeAdminSummary = {
 type CollegeSummary = {
   id: string
   name: string
-  status: College['status']
+  status: CollegeStatus
   createdAt: Date
   admin: CollegeAdminSummary | null
 }
@@ -159,7 +160,7 @@ export class CollegesService {
       })
     } else {
       colleges = await this.collegesRepo.find({
-        where: { id: requireCollegeScope(actor), status: 'active' },
+        where: { id: requireCollegeScope(actor) },
         order: { name: 'ASC' },
       })
     }
@@ -306,9 +307,59 @@ export class CollegesService {
     return this.collegesRepo.save(college)
   }
 
-  async remove(id: string, actor: AuthenticatedUser): Promise<void> {
+  async requestDelete(id: string, actor: AuthenticatedUser): Promise<CollegeDetails> {
     if (!isSuperAdmin(actor)) {
-      throw new ForbiddenException('Only super admins can delete colleges')
+      throw new ForbiddenException('Only super admins can request college deletion')
+    }
+
+    const college = await this.collegesRepo.findOne({ where: { id } })
+    if (!college) {
+      throw new NotFoundException('College not found')
+    }
+
+    if (college.status === 'delete_pending') {
+      throw new ConflictException('Delete request is already pending for this college')
+    }
+
+    if (college.status !== 'active') {
+      throw new ConflictException('Only active colleges can enter the delete approval workflow')
+    }
+
+    college.status = 'delete_pending'
+    await this.collegesRepo.save(college)
+    return this.findDetailedById(id, actor)
+  }
+
+  async cancelDelete(id: string, actor: AuthenticatedUser): Promise<CollegeDetails> {
+    if (actor.role !== 'COLLEGE_ADMIN') {
+      throw new ForbiddenException('Only the college admin can cancel a delete request')
+    }
+
+    if (requireCollegeScope(actor) !== id) {
+      throw new NotFoundException('College not found')
+    }
+
+    const college = await this.collegesRepo.findOne({ where: { id } })
+    if (!college) {
+      throw new NotFoundException('College not found')
+    }
+
+    if (college.status !== 'delete_pending') {
+      throw new ConflictException('This college does not have a pending delete request')
+    }
+
+    college.status = 'active'
+    await this.collegesRepo.save(college)
+    return this.findDetailedById(id, actor)
+  }
+
+  async remove(id: string, actor: AuthenticatedUser): Promise<void> {
+    if (actor.role !== 'COLLEGE_ADMIN') {
+      throw new ForbiddenException('Only the college admin can approve college deletion')
+    }
+
+    if (requireCollegeScope(actor) !== id) {
+      throw new NotFoundException('College not found')
     }
 
     await this.dataSource.transaction(async (manager) => {
@@ -317,15 +368,28 @@ export class CollegesService {
         throw new NotFoundException('College not found')
       }
 
-      const userCount = await manager
+      if (college.status !== 'delete_pending') {
+        throw new ConflictException('This college does not have a pending delete request')
+      }
+
+      const nonAdminUserCount = await manager
         .createQueryBuilder()
         .from('users', 'u')
         .where('u."collegeId" = :collegeId', { collegeId: id })
+        .andWhere('u.role <> :adminRole', { adminRole: 'COLLEGE_ADMIN' })
         .getCount()
 
-      if (userCount > 0 || (await collegeHasRelatedData(manager, id))) {
-        throw new ConflictException('Cannot delete college with existing data.')
+      if (nonAdminUserCount > 0 || (await collegeHasRelatedData(manager, id))) {
+        throw new ConflictException('Cannot delete college with existing users or operational data.')
       }
+
+      await manager
+        .createQueryBuilder()
+        .delete()
+        .from(User)
+        .where('"collegeId" = :collegeId', { collegeId: id })
+        .andWhere('role = :adminRole', { adminRole: 'COLLEGE_ADMIN' })
+        .execute()
 
       await manager.delete(College, { id })
     })

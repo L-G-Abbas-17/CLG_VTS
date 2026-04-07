@@ -7,10 +7,12 @@ export type CollegeAdminSummary = {
   status: 'active' | 'disabled'
 }
 
+export type CollegeStatus = 'active' | 'inactive' | 'delete_pending'
+
 export type CollegeSummary = {
   id: string
   name: string
-  status: 'active' | 'inactive'
+  status: CollegeStatus
   createdAt: string
   admin: CollegeAdminSummary | null
 }
@@ -42,6 +44,11 @@ export type CollegeMutationResponse = {
   adminTemporaryPassword?: string
 }
 
+export type CollegeStatusMutationResponse = {
+  success: true
+  college: CollegeDetails
+}
+
 class CollegeService {
   async getColleges(options?: { includeAll?: boolean }): Promise<CollegeSummary[]> {
     const path = options?.includeAll ? '/colleges?includeAll=true' : '/colleges'
@@ -66,6 +73,18 @@ class CollegeService {
 
   async updateCollege(collegeId: string, payload: UpdateCollegeInput): Promise<CollegeMutationResponse> {
     return apiClient.patch<CollegeMutationResponse>(`/colleges/${collegeId}`, payload)
+  }
+
+  async requestDeleteCollege(collegeId: string): Promise<CollegeStatusMutationResponse> {
+    return apiClient.patch<CollegeStatusMutationResponse>(`/colleges/${collegeId}/request-delete`)
+  }
+
+  async cancelDeleteCollege(collegeId: string): Promise<CollegeStatusMutationResponse> {
+    return apiClient.patch<CollegeStatusMutationResponse>(`/colleges/${collegeId}/cancel-delete`)
+  }
+
+  async deleteCollege(collegeId: string): Promise<{ success: true }> {
+    return apiClient.delete<{ success: true }>(`/colleges/${collegeId}`)
   }
 }
 

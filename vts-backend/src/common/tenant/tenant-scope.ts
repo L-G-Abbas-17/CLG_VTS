@@ -37,6 +37,15 @@ export function resolveCollegeScope(user: AuthenticatedUser, requestedCollegeId?
   return requireCollegeScope(user)
 }
 
+export function requireWritableCollegeScope(user: AuthenticatedUser, requestedCollegeId?: string | null): string {
+  const collegeScope = resolveCollegeScope(user, requestedCollegeId)
+  if (!collegeScope) {
+    throw new ForbiddenException('Select a college scope before modifying college-managed data.')
+  }
+
+  return collegeScope
+}
+
 export function mergeCollegeWhere<T extends ObjectLiteral>(
   user: AuthenticatedUser,
   where: FindOptionsWhere<T>,

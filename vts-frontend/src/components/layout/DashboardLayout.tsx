@@ -1,22 +1,16 @@
 import type { PropsWithChildren } from 'react'
 import { useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { CollegeScopeRequiredNotice } from '@components/colleges/CollegeScopeRequiredNotice'
+import { CollegeDeleteApprovalBanner } from '@components/colleges/CollegeDeleteApprovalBanner'
 import { Sidebar } from '@components/navigation/Sidebar'
 import { Topbar } from '@components/navigation/Topbar'
 import { useNotificationListener } from '@hooks/useNotificationListener'
-import { useAuthStore } from '@store/authStore'
 import { useCollegeFilterStore } from '@store/collegeFilterStore'
 
 export function DashboardLayout({ children }: PropsWithChildren) {
   useNotificationListener()
-  const location = useLocation()
-  const role = useAuthStore((state) => state.role)
   const selectedCollegeId = useCollegeFilterStore((state) => state.selectedCollegeId)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
-  const isGlobalAdminRoute = location.pathname.startsWith('/admin/colleges') || location.pathname === '/profile'
-  const shouldRequireCollegeSelection = role === 'SUPER_ADMIN' && !selectedCollegeId && !isGlobalAdminRoute
 
   return (
     <div
@@ -34,7 +28,8 @@ export function DashboardLayout({ children }: PropsWithChildren) {
       <Topbar onMenuClick={() => setIsMobileSidebarOpen(true)} />
 
       <main className='overflow-y-auto p-5'>
-        {shouldRequireCollegeSelection ? <CollegeScopeRequiredNotice /> : <div key={selectedCollegeId ?? 'global-scope'}>{children}</div>}
+        <CollegeDeleteApprovalBanner />
+        <div key={selectedCollegeId ?? 'global-scope'}>{children}</div>
       </main>
 
       {isMobileSidebarOpen ? (

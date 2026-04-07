@@ -5,15 +5,20 @@ import { Geofence } from './geofence.entity'
 import { CreateGeofenceDto } from './dto/create-geofence.dto'
 import { UpdateGeofenceDto } from './dto/update-geofence.dto'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
-import { assertTenantAccess, mergeCollegeWhere, requireCollegeScope } from '../../common/tenant/tenant-scope'
+import {
+  assertTenantAccess,
+  mergeCollegeWhere,
+  mergeRequestedCollegeWhere,
+  requireWritableCollegeScope,
+} from '../../common/tenant/tenant-scope'
 
 @Injectable()
 export class GeofencesService {
   constructor(@InjectRepository(Geofence) private readonly geofenceRepo: Repository<Geofence>) {}
 
-  async findAll(actor?: AuthenticatedUser): Promise<Geofence[]> {
+  async findAll(actor?: AuthenticatedUser, collegeId?: string | null): Promise<Geofence[]> {
     return this.geofenceRepo.find({
-      where: actor ? mergeCollegeWhere<Geofence>(actor, {}) : {},
+      where: actor ? mergeRequestedCollegeWhere<Geofence>(actor, {}, collegeId) : {},
       order: { updatedAt: 'DESC' },
     })
   }
@@ -36,9 +41,9 @@ export class GeofencesService {
     return geofence
   }
 
-  async create(payload: CreateGeofenceDto, actor: AuthenticatedUser): Promise<Geofence> {
+  async create(payload: CreateGeofenceDto, actor: AuthenticatedUser, collegeId?: string | null): Promise<Geofence> {
     const geofence = this.geofenceRepo.create({
-      collegeId: requireCollegeScope(actor),
+      collegeId: requireWritableCollegeScope(actor, collegeId),
       name: payload.name,
       address: payload.address,
       lat: payload.lat,
@@ -60,8 +65,13 @@ export class GeofencesService {
     await this.geofenceRepo.remove(geofence)
   }
 
-  async listStops(actor: AuthenticatedUser): Promise<Array<{ id: string; name: string; lat: number; lon: number }>> {
-    const stops = await this.geofenceRepo.find({ where: mergeCollegeWhere<Geofence>(actor, { isStop: true }) })
+  async listStops(
+    actor: AuthenticatedUser,
+    collegeId?: string | null,
+  ): Promise<Array<{ id: string; name: string; lat: number; lon: number }>> {
+    const stops = await this.geofenceRepo.find({
+      where: mergeRequestedCollegeWhere<Geofence>(actor, { isStop: true }, collegeId),
+    })
     return stops.map((item) => ({ id: item.id, name: item.name, lat: item.lat, lon: item.lon }))
   }
 }

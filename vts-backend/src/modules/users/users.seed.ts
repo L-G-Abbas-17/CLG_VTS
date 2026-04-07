@@ -1,9 +1,16 @@
 import { Injectable, OnModuleInit } from '@nestjs/common'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository } from 'typeorm'
+import { hashPassword } from '../../common/utils/password.util'
+import { User } from './user.entity'
 import { UsersService } from './users.service'
 
 @Injectable()
 export class UsersSeeder implements OnModuleInit {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    @InjectRepository(User) private readonly usersRepo: Repository<User>,
+  ) {}
 
   async onModuleInit() {
     const existing = await this.usersService.findByEmail('admin@vts.local')
@@ -11,17 +18,15 @@ export class UsersSeeder implements OnModuleInit {
       return
     }
 
-    await this.usersService.create({
+    const user = this.usersRepo.create({
       name: 'Super Admin',
       email: 'admin@vts.local',
-      password: 'admin123',
+      passwordHash: await hashPassword('admin123'),
       role: 'SUPER_ADMIN',
-    }, {
-      userId: 'system',
-      role: 'SUPER_ADMIN',
-      name: 'Seeder',
       collegeId: null,
       status: 'active',
     })
+
+    await this.usersRepo.save(user)
   }
 }

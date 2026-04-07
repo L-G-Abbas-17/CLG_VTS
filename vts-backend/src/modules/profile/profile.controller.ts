@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { ProfileService } from './profile.service'
 import { UpdatePreferencesDto } from './dto/update-preferences.dto'
+import { ChangePasswordDto } from './dto/change-password.dto'
 
 @ApiTags('Profile')
 @ApiBearerAuth('access-token')
@@ -43,7 +44,8 @@ export class ProfileController {
   @ApiOperation({ summary: 'Change password' })
   @ApiResponse({ status: 200 })
   @Post('change-password')
-  async changePassword() {
-    return { success: true }
+  async changePassword(@Req() req: any, @Body() payload: ChangePasswordDto) {
+    await this.profileService.changePassword(req.user.userId, payload)
+    return { success: true, message: 'Password updated' }
   }
 }

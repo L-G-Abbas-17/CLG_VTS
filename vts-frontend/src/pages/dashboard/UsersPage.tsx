@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FiPlus } from 'react-icons/fi'
-import { CollegeScopeRequiredNotice } from '@components/colleges/CollegeScopeRequiredNotice'
 import { AddUserModal, type CreateUserPayload } from '@components/users/AddUserModal'
 import { EditUserModal, type EditableUser } from '@components/users/EditUserModal'
 import { DeleteUserDialog } from '@components/users/DeleteUserDialog'
 import { UsersTable } from '@components/users/UsersTable'
 import type { UserRole } from '@services/authService'
-import { userService, type UserRecord } from '@services/userService'
 import { collegeService, type CollegeOption } from '@services/collegeService'
+import { userService, type UserRecord } from '@services/userService'
 import { useAuthStore } from '@store/authStore'
 import { useCollegeFilterStore } from '@store/collegeFilterStore'
 
@@ -18,12 +17,17 @@ const roleLevel: Record<UserRole, number> = {
   STUDENT: 1,
 }
 
+type AssignableRole = 'FLEET_MANAGER' | 'STUDENT'
+
+function toAssignableRole(role: EditableUser['role']): AssignableRole {
+  return role === 'STUDENT' ? 'STUDENT' : 'FLEET_MANAGER'
+}
+
 export function UsersPage() {
   const currentUserRole = useAuthStore((state) => state.role) ?? 'STUDENT'
   const currentUser = useAuthStore((state) => state.user)
   const selectedCollegeId = useCollegeFilterStore((state) => state.selectedCollegeId)
   const isSuperAdmin = currentUserRole === 'SUPER_ADMIN'
-  const canCreateUsers = currentUserRole !== 'STUDENT' && (!isSuperAdmin || Boolean(selectedCollegeId))
   const [users, setUsers] = useState<UserRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -31,7 +35,6 @@ export function UsersPage() {
   const [editingUser, setEditingUser] = useState<EditableUser | null>(null)
   const [deletingUser, setDeletingUser] = useState<UserRecord | null>(null)
   const [colleges, setColleges] = useState<CollegeOption[]>([])
-  const [isLoadingColleges, setIsLoadingColleges] = useState(true)
 
   const loadUsers = async () => {
     setIsLoading(true)
@@ -49,20 +52,59 @@ export function UsersPage() {
 
   useEffect(() => {
     const loadColleges = async () => {
-      setIsLoadingColleges(true)
-      try {
-        const data = await collegeService.getCollegeOptions()
-        setColleges(data)
-      } finally {
-        setIsLoadingColleges(false)
-      }
+      const data = await collegeService.getCollegeOptions()
+      setColleges(data)
     }
 
     void loadColleges()
   }, [])
 
+  const availableAssignableRoles = useMemo<AssignableRole[]>(() => {
+    if (currentUserRole === 'SUPER_ADMIN') {
+      return selectedCollegeId ? ['FLEET_MANAGER', 'STUDENT'] : []
+    }
+
+    if (currentUserRole === 'COLLEGE_ADMIN') {
+      return ['FLEET_MANAGER', 'STUDENT']
+    }
+
+    if (currentUserRole === 'FLEET_MANAGER') {
+      return ['STUDENT']
+    }
+
+    return []
+  }, [currentUserRole, selectedCollegeId])
+
+  const canCreateUsers = availableAssignableRoles.length > 0
+
+  const scopedCollegeName = useMemo(() => {
+    if (isSuperAdmin) {
+      return colleges.find((college) => college.id === selectedCollegeId)?.name ?? null
+    }
+
+    return colleges[0]?.name ?? null
+  }, [colleges, isSuperAdmin, selectedCollegeId])
+
+  const addUserHelperText = useMemo(() => {
+    if (isSuperAdmin && !selectedCollegeId) {
+      return 'Select a college to add users.'
+    }
+
+    if (currentUserRole === 'FLEET_MANAGER') {
+      return 'Fleet managers can create student accounts only.'
+    }
+
+    return scopedCollegeName
+      ? `New users will be added to ${scopedCollegeName}.`
+      : 'Users are created inside the active college scope.'
+  }, [currentUserRole, isSuperAdmin, scopedCollegeName, selectedCollegeId])
+
   const filteredUsers = useMemo(() => {
     const visibleUsers = users.filter((user) => {
+      if (user.role === 'SUPER_ADMIN' || user.role === 'COLLEGE_ADMIN') {
+        return false
+      }
+
       if (roleLevel[user.role] >= roleLevel[currentUserRole]) {
         return false
       }
@@ -82,6 +124,7 @@ export function UsersPage() {
     if (!query) {
       return visibleUsers
     }
+
     return visibleUsers.filter(
       (user) =>
         user.name.toLowerCase().includes(query) ||
@@ -90,24 +133,15 @@ export function UsersPage() {
     )
   }, [currentUser?.email, currentUser?.id, currentUserRole, search, users])
 
-  const scopedCollegeOptions = useMemo(() => {
-    if (!isSuperAdmin || !selectedCollegeId) {
-      return colleges
-    }
-
-    return colleges.filter((college) => college.id === selectedCollegeId)
-  }, [colleges, isSuperAdmin, selectedCollegeId])
-
   const handleCreate = async (payload: CreateUserPayload) => {
-    if (isSuperAdmin && selectedCollegeId) {
-      if (payload.role === 'SUPER_ADMIN') {
-        throw new Error('Scoped user management cannot create SUPER_ADMIN accounts.')
+    if (isSuperAdmin) {
+      if (!selectedCollegeId) {
+        throw new Error('Select a college to add users.')
       }
 
       await userService.createUser({
         ...payload,
         collegeId: selectedCollegeId,
-        collegeName: undefined,
       })
       await loadUsers()
       return
@@ -133,7 +167,9 @@ export function UsersPage() {
         <div className='flex flex-wrap items-center justify-between gap-3'>
           <div>
             <h2 className='text-lg font-semibold text-slate-900 dark:text-slate-100'>Users</h2>
-            <p className='text-sm text-slate-600 dark:text-slate-300'>Manage platform users and roles</p>
+            <p className='text-sm text-slate-600 dark:text-slate-300'>
+              {scopedCollegeName ? `Users for selected college: ${scopedCollegeName}` : 'Manage college-scoped users and roles'}
+            </p>
           </div>
 
           {canCreateUsers ? (
@@ -158,9 +194,7 @@ export function UsersPage() {
         </div>
       </section>
 
-      {isSuperAdmin && !selectedCollegeId ? (
-        <CollegeScopeRequiredNotice description='Select a college from the top bar before managing users. Super admin college management remains available from the global College Management section.' />
-      ) : isLoading ? (
+      {isLoading ? (
         <div className='rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300'>
           Loading users...
         </div>
@@ -193,9 +227,10 @@ export function UsersPage() {
           isOpen={isAddOpen}
           onClose={() => setIsAddOpen(false)}
           onCreate={handleCreate}
-          colleges={scopedCollegeOptions}
-          isLoadingColleges={isLoadingColleges}
           currentUserRole={currentUserRole}
+          availableRoles={availableAssignableRoles}
+          scopedCollegeName={scopedCollegeName}
+          helperText={addUserHelperText}
         />
       ) : null}
 
@@ -204,21 +239,16 @@ export function UsersPage() {
         isOpen={Boolean(editingUser)}
         onClose={() => setEditingUser(null)}
         onSave={async (payload) => {
-          if (isSuperAdmin && selectedCollegeId && payload.role === 'SUPER_ADMIN') {
-            throw new Error('Scoped user management cannot promote users to SUPER_ADMIN.')
-          }
-
           await userService.updateUser(payload.id, {
             name: payload.name,
-            role: payload.role,
-            collegeId: isSuperAdmin && selectedCollegeId ? selectedCollegeId : payload.collegeId,
-            collegeName: payload.collegeNameInput,
+            role: toAssignableRole(payload.role),
+            collegeId: isSuperAdmin && selectedCollegeId ? selectedCollegeId : payload.collegeId ?? undefined,
             status: payload.status,
           })
           await loadUsers()
         }}
-        colleges={scopedCollegeOptions}
-        isLoadingColleges={isLoadingColleges}
+        availableRoles={availableAssignableRoles}
+        scopedCollegeName={scopedCollegeName}
       />
 
       <DeleteUserDialog

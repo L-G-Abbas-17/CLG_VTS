@@ -3,6 +3,7 @@ import { fetchStops, type Stop } from '@services/geofenceService'
 import { routeService } from '@services/routeService'
 import { RoutePreviewMap } from '@components/routes/RoutePreviewMap'
 import { generateRoutePolyline } from '@utils/routePolyline'
+import { getActiveCollegeFilterId } from '@utils/collegeScope'
 import type { RouteStop } from '../../types/route'
 
 type RouteFormProps = {
@@ -12,7 +13,7 @@ type RouteFormProps = {
   onSuccess?: () => Promise<void> | void
 }
 
-const DEFAULT_COLLEGE_ID = 'COLLEGE_001'
+const DEFAULT_COLLEGE_ID = ''
 
 function toRouteStop(stop: Stop): RouteStop {
   return {
@@ -29,6 +30,7 @@ export function RouteForm({
   onCancel,
   onSuccess,
 }: RouteFormProps) {
+  const resolvedCollegeId = collegeId || getActiveCollegeFilterId() || DEFAULT_COLLEGE_ID
   const [routeName, setRouteName] = useState('')
   const [startStopId, setStartStopId] = useState('')
   const [endStopId, setEndStopId] = useState('')
@@ -157,6 +159,7 @@ export function RouteForm({
 
     try {
       await routeService.createRoute({
+        collegeId: resolvedCollegeId || undefined,
         name: routeName.trim(),
         startStop: toRouteStop(selectedStartStop),
         endStop: toRouteStop(selectedEndStop),
@@ -320,7 +323,7 @@ export function RouteForm({
           <label className='space-y-1'>
             <span className='text-sm font-medium text-slate-700 dark:text-slate-200'>College ID</span>
             <input
-              value={collegeId}
+              value={resolvedCollegeId}
               readOnly
               className='w-full rounded-xl border border-slate-200 bg-slate-100/80 px-3 py-2 text-sm text-slate-600 outline-none dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-300'
             />

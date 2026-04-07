@@ -1,8 +1,9 @@
 import type { Device } from '../types/device'
 import { apiClient } from '../api/apiClient'
-import { buildCollegeScopedPath, filterByActiveCollege } from '@utils/collegeScope'
+import { buildCollegeScopedPath, filterByActiveCollege, getActiveCollegeFilterId } from '@utils/collegeScope'
 
 export type CreateDeviceInput = {
+  collegeId?: string
   deviceId: string
   imei: string
   assignedVehicleId?: string
@@ -32,10 +33,13 @@ class DeviceService {
   }
 
   async createDevice(deviceData: CreateDeviceInput): Promise<{ success: true; message: string; device: Device }> {
-    return apiClient.post<{ success: true; message: string; device: Device }>('/devices', {
-      deviceId: deviceData.deviceId,
-      imei: deviceData.imei,
-    })
+    return apiClient.post<{ success: true; message: string; device: Device }>(
+      buildCollegeScopedPath('/devices', { collegeId: deviceData.collegeId ?? getActiveCollegeFilterId() }),
+      {
+        deviceId: deviceData.deviceId,
+        imei: deviceData.imei,
+      },
+    )
   }
 
   async updateDevice(

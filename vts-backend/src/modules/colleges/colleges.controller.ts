@@ -49,6 +49,22 @@ export class CollegesController {
     return { success: true, ...result }
   }
 
+  @ApiOperation({ summary: 'Request college deletion' })
+  @ApiResponse({ status: 200 })
+  @Patch(':collegeId/request-delete')
+  async requestDelete(@Param('collegeId') collegeId: string, @CurrentUser() user: AuthenticatedUser) {
+    const college = await this.collegesService.requestDelete(collegeId, user)
+    return { success: true, college }
+  }
+
+  @ApiOperation({ summary: 'Cancel college deletion request' })
+  @ApiResponse({ status: 200 })
+  @Patch(':collegeId/cancel-delete')
+  async cancelDelete(@Param('collegeId') collegeId: string, @CurrentUser() user: AuthenticatedUser) {
+    const college = await this.collegesService.cancelDelete(collegeId, user)
+    return { success: true, college }
+  }
+
   @ApiOperation({ summary: 'Update college status' })
   @ApiResponse({ status: 200 })
   @Patch(':collegeId/status')

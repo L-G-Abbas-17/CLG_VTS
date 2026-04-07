@@ -1,10 +1,13 @@
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 import { ProfilePreferences } from './profile-preferences.entity'
 import { UpdatePreferencesDto } from './dto/update-preferences.dto'
 import { UsersService } from '../users/users.service'
 import { College } from '../colleges/college.entity'
+import { User } from '../users/user.entity'
+import { comparePassword, hashPassword } from '../../common/utils/password.util'
+import { ChangePasswordDto } from './dto/change-password.dto'
 
 @Injectable()
 export class ProfileService {
@@ -14,6 +17,8 @@ export class ProfileService {
     private readonly usersService: UsersService,
     @InjectRepository(College)
     private readonly collegesRepo: Repository<College>,
+    @InjectRepository(User)
+    private readonly usersRepo: Repository<User>,
   ) {}
 
   async getProfile(userId: string) {
@@ -76,5 +81,24 @@ export class ProfileService {
       )
     }
     return { success: true }
+  }
+
+  async changePassword(userId: string, payload: ChangePasswordDto) {
+    const user = await this.usersRepo.findOne({ where: { id: userId } })
+    if (!user) {
+      throw new UnauthorizedException('User not found')
+    }
+
+    const currentPasswordValid = await comparePassword(payload.currentPassword, user.passwordHash)
+    if (!currentPasswordValid) {
+      throw new UnauthorizedException('Current password is incorrect.')
+    }
+
+    if (payload.currentPassword === payload.newPassword) {
+      throw new BadRequestException('New password must be different from the current password.')
+    }
+
+    user.passwordHash = await hashPassword(payload.newPassword)
+    await this.usersRepo.save(user)
   }
 }

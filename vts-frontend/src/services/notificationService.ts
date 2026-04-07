@@ -20,6 +20,7 @@ export type NotificationListParams = {
   type?: Notification['type']
   fromDate?: string
   toDate?: string
+  ignoreActiveCollegeScope?: boolean
 }
 
 export type PaginatedNotificationsResponse = {
@@ -41,14 +42,16 @@ class NotificationService {
     if (params?.toDate) searchParams.set('toDate', params.toDate)
 
     const suffix = searchParams.toString()
-    return buildCollegeScopedPath(suffix ? `/notifications?${suffix}` : '/notifications')
+    return buildCollegeScopedPath(suffix ? `/notifications?${suffix}` : '/notifications', {
+      ignoreActiveCollegeScope: params?.ignoreActiveCollegeScope,
+    })
   }
 
   async getNotificationsPage(params?: NotificationListParams): Promise<PaginatedNotificationsResponse> {
     const response = await apiClient.get<PaginatedNotificationsResponse>(this.buildListQuery(params))
     return {
       ...response,
-      data: filterByActiveCollege(response.data),
+      data: params?.ignoreActiveCollegeScope ? response.data : filterByActiveCollege(response.data),
     }
   }
 

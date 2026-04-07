@@ -138,14 +138,16 @@ export function UsersTable({ users, currentUser, onEdit, onDelete, onToggleStatu
                     </td>
                     <td className='px-3 py-3 text-right'>
                       <div className='flex items-center justify-end gap-2'>
-                        <button
-                          type='button'
-                          onClick={() => onEdit(user)}
-                          className='inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:border-blue-600 hover:text-blue-600 dark:border-slate-600 dark:text-slate-100 dark:hover:border-[#38bdf8] dark:hover:text-[#38bdf8]'
-                        >
-                          <FiEdit size={14} />
-                          Edit
-                        </button>
+                        {canManage ? (
+                          <button
+                            type='button'
+                            onClick={() => onEdit(user)}
+                            className='inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:border-blue-600 hover:text-blue-600 dark:border-slate-600 dark:text-slate-100 dark:hover:border-[#38bdf8] dark:hover:text-[#38bdf8]'
+                          >
+                            <FiEdit size={14} />
+                            Edit
+                          </button>
+                        ) : null}
                         {canManage ? (
                           <button
                             type='button'

@@ -63,8 +63,12 @@ export class VehiclesController {
   @ApiResponse({ status: 200 })
   @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
   @Post()
-  async create(@Body() payload: CreateVehicleDto, @CurrentUser() user: AuthenticatedUser) {
-    const vehicle = await this.vehiclesService.create(payload, user)
+  async create(
+    @Body() payload: CreateVehicleDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('collegeId') collegeId?: string,
+  ) {
+    const vehicle = await this.vehiclesService.create(payload, user, collegeId)
     return { success: true, message: 'Vehicle created', vehicle }
   }
 

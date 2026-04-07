@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FiPauseCircle, FiPlayCircle, FiStopCircle, FiTruck, FiWifiOff } from 'react-icons/fi'
 import { VehicleStatusPieChart } from '@components/charts/VehicleStatusPieChart'
+import { CollegeScopeSelector } from '@components/colleges/CollegeScopeSelector'
 import { RecentActivities } from '@components/dashboard/RecentActivities'
 import { DashboardLayout } from '@components/layout/DashboardLayout'
 import { StatCard } from '@components/ui/StatCard'
@@ -144,7 +145,16 @@ export function DashboardPage() {
         <WelcomeCard
           name={user?.name ?? 'Operator'}
           role={role ?? 'NO_ROLE'}
-          actions={null}
+          actions={
+            isSuperAdmin ? (
+              <div className='rounded-2xl border border-white/20 bg-slate-900/10 p-4 backdrop-blur-sm dark:border-slate-600/60 dark:bg-slate-950/20'>
+                <CollegeScopeSelector
+                  className='w-full'
+                  helperText='Select a college to work with tenant-scoped dashboard data.'
+                />
+              </div>
+            ) : null
+          }
         />
 
         <section className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5'>
