@@ -3,21 +3,31 @@ import { FiX } from 'react-icons/fi'
 import { deviceService } from '@services/deviceService'
 import type { Device } from '../../types/device'
 
+type DeviceEditToast = {
+  type: 'success' | 'warning' | 'error'
+  message: string
+}
+
 type EditDeviceModalProps = {
   isOpen: boolean
   device: Device | null
   onClose: () => void
   onSuccess: () => Promise<void> | void
+  onToast: (toast: DeviceEditToast) => void
 }
 
 const IMEI_REGEX = /^\d{15}$/
 const DEVICE_ID_REGEX = /^[A-Z0-9_]{3,32}$/
+const MIN_INTERVAL_MS = 1000
+const MAX_INTERVAL_MS = 60000
 
-export function EditDeviceModal({ isOpen, device, onClose, onSuccess }: EditDeviceModalProps) {
+export function EditDeviceModal({ isOpen, device, onClose, onSuccess, onToast }: EditDeviceModalProps) {
   const [deviceId, setDeviceId] = useState('')
   const [imei, setImei] = useState('')
+  const [telemetryIntervalMs, setTelemetryIntervalMs] = useState('5000')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitPhase, setSubmitPhase] = useState<'idle' | 'saving' | 'waiting-ack'>('idle')
 
   useEffect(() => {
     if (!isOpen || !device) {
@@ -26,8 +36,10 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess }: EditDevi
 
     setDeviceId(device.deviceId)
     setImei(device.imei)
+    setTelemetryIntervalMs(String(device.telemetryIntervalMs ?? 5000))
     setError('')
     setIsSubmitting(false)
+    setSubmitPhase('idle')
   }, [isOpen, device])
 
   if (!isOpen || !device) {
@@ -37,6 +49,7 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess }: EditDevi
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError('')
+    const currentInterval = device.telemetryIntervalMs ?? 5000
 
     if (!DEVICE_ID_REGEX.test(deviceId.trim())) {
       setError('Device ID must be 3-32 chars (A-Z, 0-9, underscore)')
@@ -48,20 +61,66 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess }: EditDevi
       return
     }
 
+    const parsedInterval = Number(telemetryIntervalMs)
+    if (!Number.isInteger(parsedInterval) || parsedInterval < MIN_INTERVAL_MS || parsedInterval > MAX_INTERVAL_MS) {
+      setError(`Telemetry interval must be between ${MIN_INTERVAL_MS} and ${MAX_INTERVAL_MS} ms`)
+      return
+    }
+
+    const metadataChanged = deviceId.trim() !== device.deviceId || imei.trim() !== device.imei
+    const intervalChanged = parsedInterval !== currentInterval
+
+    if (!metadataChanged && !intervalChanged) {
+      onClose()
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
-      await deviceService.updateDevice(device.id, {
-        deviceId: deviceId.trim(),
-        imei: imei.trim(),
-      })
+      if (intervalChanged) {
+        setSubmitPhase('waiting-ack')
+        const intervalResponse = await deviceService.updateTelemetryInterval(device.deviceId, parsedInterval)
+
+        if (intervalResponse.status === 'timeout') {
+          const message = 'Device not responding (timeout)'
+          setError(message)
+          onToast({ type: 'warning', message })
+          return
+        }
+      }
+
+      if (metadataChanged) {
+        setSubmitPhase('saving')
+        try {
+          await deviceService.updateDevice(device.id, {
+            deviceId: deviceId.trim(),
+            imei: imei.trim(),
+          })
+        } catch {
+          await onSuccess()
+          const message = intervalChanged
+            ? 'Interval updated on device, but saving device details failed'
+            : 'Failed to update device'
+          setError(message)
+          onToast({ type: 'error', message })
+          return
+        }
+      }
 
       await onSuccess()
+      onToast({
+        type: 'success',
+        message: intervalChanged ? 'Interval updated successfully' : 'Device updated successfully',
+      })
       onClose()
     } catch {
-      setError('Failed to update device')
+      const message = intervalChanged ? 'Failed to update device interval' : 'Failed to update device'
+      setError(message)
+      onToast({ type: 'error', message })
     } finally {
       setIsSubmitting(false)
+      setSubmitPhase('idle')
     }
   }
 
@@ -100,7 +159,29 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess }: EditDevi
             />
           </div>
 
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200'>
+              Telemetry Interval (ms)
+            </label>
+            <input
+              type='number'
+              min={MIN_INTERVAL_MS}
+              max={MAX_INTERVAL_MS}
+              step={1000}
+              value={telemetryIntervalMs}
+              onChange={(event) => setTelemetryIntervalMs(event.target.value)}
+              className='w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-600 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-[#38bdf8]'
+            />
+            <p className='mt-1 text-xs text-slate-500 dark:text-slate-400'>
+              Changes apply only after the device sends an ACK. Allowed range: {MIN_INTERVAL_MS}-{MAX_INTERVAL_MS} ms.
+            </p>
+          </div>
+
           <p className='text-xs text-slate-500 dark:text-slate-400'>Assigned vehicle cannot be edited here.</p>
+
+          {submitPhase === 'waiting-ack' ? (
+            <p className='text-sm text-amber-600 dark:text-amber-300'>Waiting for device ACK...</p>
+          ) : null}
 
           {error ? <p className='text-sm text-rose-600 dark:text-rose-400'>{error}</p> : null}
 
@@ -108,6 +189,7 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess }: EditDevi
             <button
               type='button'
               onClick={onClose}
+              disabled={isSubmitting}
               className='rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-blue-600 hover:text-blue-600 dark:border-slate-600 dark:text-slate-100 dark:hover:border-[#38bdf8] dark:hover:text-[#38bdf8]'
             >
               Cancel
@@ -117,7 +199,7 @@ export function EditDeviceModal({ isOpen, device, onClose, onSuccess }: EditDevi
               disabled={isSubmitting}
               className='rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-[#38bdf8] dark:text-slate-950 dark:hover:bg-cyan-300'
             >
-              {isSubmitting ? 'Saving...' : 'Save'}
+              {submitPhase === 'waiting-ack' ? 'Updating device...' : isSubmitting ? 'Saving...' : 'Save'}
             </button>
           </div>
         </form>

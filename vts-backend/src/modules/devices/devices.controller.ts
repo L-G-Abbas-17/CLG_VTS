@@ -4,11 +4,14 @@ import { DevicesService } from './devices.service'
 import { CreateDeviceDto } from './dto/create-device.dto'
 import { UpdateDeviceDto } from './dto/update-device.dto'
 import { AssignDeviceDto } from './dto/assign-device.dto'
+import { UpdateDeviceIntervalDto } from './dto/update-device-interval.dto'
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { CurrentUser } from '../../common/auth/current-user.decorator'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
 import { Roles } from '../../common/guards/roles.decorator'
 import { RolesGuard } from '../../common/guards/roles.guard'
+import { DeviceAckService } from '../../mqtt/device-ack.service'
+import { DeviceCommandService } from '../../mqtt/device-command.service'
 
 @ApiTags('Devices')
 @ApiBearerAuth('access-token')
@@ -16,7 +19,11 @@ import { RolesGuard } from '../../common/guards/roles.guard'
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('SUPER_ADMIN', 'COLLEGE_ADMIN', 'FLEET_MANAGER')
 export class DevicesController {
-  constructor(private readonly devicesService: DevicesService) {}
+  constructor(
+    private readonly devicesService: DevicesService,
+    private readonly deviceCommandService: DeviceCommandService,
+    private readonly deviceAckService: DeviceAckService,
+  ) {}
 
   @ApiOperation({ summary: 'List devices' })
   @ApiResponse({ status: 200 })
@@ -65,6 +72,32 @@ export class DevicesController {
   async remove(@Param('deviceId') deviceId: string, @CurrentUser() user: AuthenticatedUser) {
     await this.devicesService.remove(deviceId, user)
     return { success: true, message: 'Device deleted' }
+  }
+
+  @ApiOperation({ summary: 'Update telemetry interval and wait for device ACK' })
+  @ApiResponse({ status: 200 })
+  @Post(':deviceId/interval')
+  async updateInterval(
+    @Param('deviceId') deviceId: string,
+    @Body() payload: UpdateDeviceIntervalDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const sentAt = Date.now()
+
+    await this.deviceCommandService.sendIntervalUpdate(deviceId, payload.interval)
+
+    const ack = await this.deviceAckService.waitForAck(deviceId, payload.interval, sentAt)
+    if (!ack) {
+      return { status: 'timeout' as const }
+    }
+
+    await this.devicesService.updateTelemetryInterval(deviceId, ack.interval, user)
+
+    return {
+      status: 'success' as const,
+      interval: ack.interval,
+      timestamp: new Date(ack.timestamp).toISOString(),
+    }
   }
 
   @ApiOperation({ summary: 'Assign device to vehicle' })

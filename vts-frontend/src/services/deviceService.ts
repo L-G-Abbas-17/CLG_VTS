@@ -17,6 +17,16 @@ export type DeviceServiceResponse = {
   message: string
 }
 
+export type UpdateDeviceIntervalResponse =
+  | {
+      status: 'success'
+      interval: number
+      timestamp: string
+    }
+  | {
+      status: 'timeout'
+    }
+
 function normalizeStatus(device: Omit<Device, 'status'> & { status?: Device['status'] }): Device {
   const isAssigned = Boolean(device.assignedVehicleName)
 
@@ -54,6 +64,10 @@ class DeviceService {
 
   async deleteDevice(deviceRecordId: string): Promise<DeviceServiceResponse> {
     return apiClient.delete<DeviceServiceResponse>(`/devices/${deviceRecordId}`)
+  }
+
+  async updateTelemetryInterval(deviceId: string, interval: number): Promise<UpdateDeviceIntervalResponse> {
+    return apiClient.post<UpdateDeviceIntervalResponse>(`/devices/${deviceId}/interval`, { interval })
   }
 
   async getUnassignedDevices(): Promise<Device[]> {

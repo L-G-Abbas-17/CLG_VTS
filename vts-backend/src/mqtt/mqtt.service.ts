@@ -3,15 +3,18 @@ import { ConfigService } from '@nestjs/config'
 import mqtt, { MqttClient } from 'mqtt'
 import { getMqttConfig } from '../config/mqtt.config'
 import { TelemetryHandler } from './telemetry.handler'
+import { DeviceAckService } from './device-ack.service'
 
 @Injectable()
 export class MqttService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MqttService.name)
   private client: MqttClient | null = null
+  private readonly ackTopic = 'vts/devices/+/ack'
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly telemetryHandler: TelemetryHandler
+    private readonly telemetryHandler: TelemetryHandler,
+    private readonly deviceAckService: DeviceAckService,
   ) {}
 
   onModuleInit() {
@@ -31,27 +34,12 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     this.client.on('connect', () => {
       this.logger.log('MQTT connected')
 
-      this.client?.subscribe(config.telemetryTopic, (err) => {
-        if (err) {
-          this.logger.error(`Subscription failed: ${err.message}`)
-        } else {
-          this.logger.log(`Subscribed to topic: ${config.telemetryTopic}`)
-        }
-      })
+      this.subscribe(config.telemetryTopic)
+      this.subscribe(this.ackTopic)
     })
 
     this.client.on('message', (topic, payload) => {
-      const message = payload.toString()
-
-      this.logger.debug(`MQTT message received`)
-      this.logger.debug(`Topic: ${topic}`)
-      this.logger.debug(`Payload: ${message}`)
-
-      try {
-        this.telemetryHandler.handle(topic, message)
-      } catch (err) {
-        this.logger.error(`Telemetry processing failed`, err)
-      }
+      void this.handleIncomingMessage(topic, payload.toString())
     })
 
     this.client.on('error', (err) => {
@@ -70,5 +58,56 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy() {
     this.logger.log('Closing MQTT connection')
     this.client?.end()
+  }
+
+  async publish(topic: string, payload: string): Promise<void> {
+    if (!this.client || !this.client.connected) {
+      throw new Error('MQTT client is not connected')
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      this.client?.publish(topic, payload, { qos: 1 }, (error) => {
+        if (error) {
+          reject(error)
+          return
+        }
+
+        resolve()
+      })
+    })
+  }
+
+  private subscribe(topic: string) {
+    this.client?.subscribe(topic, (error) => {
+      if (error) {
+        this.logger.error(`Subscription failed for ${topic}: ${error.message}`)
+        return
+      }
+
+      this.logger.log(`Subscribed to topic: ${topic}`)
+    })
+  }
+
+  private async handleIncomingMessage(topic: string, message: string) {
+    this.logger.debug(`MQTT message received`)
+    this.logger.debug(`Topic: ${topic}`)
+    this.logger.debug(`Payload: ${message}`)
+
+    try {
+      if (this.isAckTopic(topic)) {
+        this.deviceAckService.handleAck(topic, message)
+        return
+      }
+
+      await this.telemetryHandler.handle(topic, message)
+    } catch (error) {
+      const details = error instanceof Error ? error.stack ?? error.message : String(error)
+      this.logger.error(`MQTT message processing failed for ${topic}`, details)
+    }
+  }
+
+  private isAckTopic(topic: string): boolean {
+    const parts = topic.split('/')
+    return parts.length === 4 && parts[0] === 'vts' && parts[1] === 'devices' && parts[3] === 'ack'
   }
 }

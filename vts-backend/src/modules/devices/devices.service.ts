@@ -101,6 +101,12 @@ export class DevicesService {
     return this.deviceRepo.save(device)
   }
 
+  async updateTelemetryInterval(deviceUid: string, telemetryIntervalMs: number, actor: AuthenticatedUser): Promise<Device> {
+    const device = await this.findByUidForWrite(deviceUid, actor)
+    device.telemetryIntervalMs = telemetryIntervalMs
+    return this.deviceRepo.save(device)
+  }
+
   async remove(id: string, actor: AuthenticatedUser): Promise<void> {
     const device = await this.findByIdForWrite(id, actor)
     if (device.status === 'assigned') {

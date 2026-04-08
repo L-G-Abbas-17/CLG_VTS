@@ -29,6 +29,9 @@ export class Device {
   @Column({ type: 'varchar', length: 15, unique: true })
   imei!: string
 
+  @Column({ type: 'integer', default: 5000 })
+  telemetryIntervalMs!: number
+
   @Column({ type: 'uuid', nullable: true })
   assignedVehicleId!: string | null
 

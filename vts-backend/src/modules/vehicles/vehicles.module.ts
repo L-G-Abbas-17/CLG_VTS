@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common'
+import { forwardRef, Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { VehiclesController } from './vehicles.controller'
 import { VehiclesService } from './vehicles.service'
@@ -10,7 +10,12 @@ import { DevicesModule } from '../devices/devices.module'
 import { Route } from '../routes/route.entity'
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Vehicle, TelemetryRecord, Route]), TripsModule, TelemetryModule, DevicesModule],
+  imports: [
+    TypeOrmModule.forFeature([Vehicle, TelemetryRecord, Route]),
+    TripsModule,
+    TelemetryModule,
+    forwardRef(() => DevicesModule),
+  ],
   controllers: [VehiclesController],
   providers: [VehiclesService],
   exports: [VehiclesService],

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common'
+import { forwardRef, Module } from '@nestjs/common'
 import { MqttService } from './mqtt.service'
 import { TelemetryHandler } from './telemetry.handler'
 import { TelemetryModule } from '../modules/telemetry/telemetry.module'
@@ -8,17 +8,19 @@ import { TripsModule } from '../modules/trips/trips.module'
 import { EventsModule } from '../modules/events/events.module'
 import { WebsocketModule } from '../websocket/websocket.module'
 import { TelemetryStateService } from './telemetry-state.service'
+import { DeviceAckService } from './device-ack.service'
+import { DeviceCommandService } from './device-command.service'
 
 @Module({
   imports: [
     TelemetryModule,
-    VehiclesModule,
-    DevicesModule,
+    forwardRef(() => VehiclesModule),
+    forwardRef(() => DevicesModule),
     TripsModule,
     EventsModule,
     WebsocketModule,
   ],
-  providers: [MqttService, TelemetryHandler, TelemetryStateService],
-  exports: [TelemetryHandler],
+  providers: [MqttService, TelemetryHandler, TelemetryStateService, DeviceAckService, DeviceCommandService],
+  exports: [TelemetryHandler, MqttService, DeviceAckService, DeviceCommandService],
 })
 export class MqttModule {}
