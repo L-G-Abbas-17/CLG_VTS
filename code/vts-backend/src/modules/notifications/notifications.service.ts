@@ -6,7 +6,7 @@ import { CreateNotificationDto } from './dto/create-notification.dto'
 import { Route } from '../routes/route.entity'
 import { Vehicle } from '../vehicles/vehicle.entity'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
-import { applyCollegeScope, mergeCollegeWhere } from '../../common/tenant/tenant-scope'
+import { applyRequestedTenantScope, mergeCollegeWhere } from '../../common/tenant/tenant-scope'
 import { TelemetryGateway } from '../../websocket/telemetry.gateway'
 import { ListNotificationsDto } from './dto/list-notifications.dto'
 
@@ -33,7 +33,7 @@ export class NotificationsService {
       .addSelect('g.name', 'geofenceName')
       .orderBy('n.timestamp', 'DESC')
 
-    applyCollegeScope(query, 'n', actor)
+    applyRequestedTenantScope(query, 'n', actor, filters.collegeId)
 
     if (filters.search?.trim()) {
       const search = `%${filters.search.trim().toLowerCase()}%`

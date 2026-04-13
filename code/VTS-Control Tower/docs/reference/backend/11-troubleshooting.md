@@ -16,6 +16,12 @@
 - Start Postgres: `docker compose up -d`.
 - Verify `.env` DB_HOST/DB_PORT.
 
+## PostgreSQL container is unhealthy after an image upgrade
+**Error:** `database files are incompatible with server`.
+- The Docker volume was initialized by a different PostgreSQL major version than the current image.
+- Keep `POSTGRES_IMAGE_TAG=15-alpine` when reusing an existing PostgreSQL 15 volume.
+- If you intentionally upgrade to a newer major version, migrate the data first or recreate the volume with `docker compose down -v`.
+
 ## Env validation failed
 **Error:** `Env validation failed: ... isString`.
 - Ensure `.env` contains required variables (see `docs/08-environment-config.md`).

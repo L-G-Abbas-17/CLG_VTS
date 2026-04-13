@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, Legend } from 'recharts'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Cell, Pie, PieChart, Tooltip, Legend } from 'recharts'
 import { useTheme } from '@hooks/useTheme'
 
 type VehicleStatusPieDatum = {
@@ -31,8 +31,30 @@ export function VehicleStatusPieChart({ data = defaultData }: VehicleStatusPieCh
   const tooltipBg = isDark ? '#0f172a' : '#ffffff'
   const tooltipBorder = isDark ? '#334155' : '#cbd5e1'
   const [isCenterHovered, setIsCenterHovered] = useState(false)
+  const chartContainerRef = useRef<HTMLDivElement | null>(null)
+  const [chartWidth, setChartWidth] = useState(0)
 
   const totalCount = useMemo(() => data.reduce((sum, item) => sum + item.value, 0), [data])
+
+  useEffect(() => {
+    const node = chartContainerRef.current
+    if (!node) {
+      return
+    }
+
+    const updateWidth = () => {
+      setChartWidth(node.getBoundingClientRect().width)
+    }
+
+    updateWidth()
+
+    const observer = new ResizeObserver(() => {
+      updateWidth()
+    })
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   return (
     <article className='rounded-2xl border border-white/30 bg-white/55 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-slate-700/70 dark:bg-[#1e293b]/70 dark:shadow-black/20'>
@@ -40,9 +62,9 @@ export function VehicleStatusPieChart({ data = defaultData }: VehicleStatusPieCh
         <h3 className='text-lg font-semibold text-slate-900 dark:text-slate-100'>Vehicle Status</h3>
       </header>
 
-      <div className='relative h-[300px] w-full min-w-0'>
-        <ResponsiveContainer width='100%' height='100%' minWidth={0} minHeight={260}>
-          <PieChart>
+      <div ref={chartContainerRef} className='relative h-[300px] w-full min-w-0'>
+        {chartWidth > 0 ? (
+          <PieChart width={Math.max(280, Math.floor(chartWidth))} height={300}>
             <Pie
               data={data}
               dataKey='value'
@@ -68,7 +90,7 @@ export function VehicleStatusPieChart({ data = defaultData }: VehicleStatusPieCh
               formatter={(value) => [`${value ?? 0}`, 'Count']}
             />
           </PieChart>
-        </ResponsiveContainer>
+        ) : null}
 
         <div
           className='absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full'

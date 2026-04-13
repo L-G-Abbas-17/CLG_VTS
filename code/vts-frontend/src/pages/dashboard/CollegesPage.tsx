@@ -72,7 +72,7 @@ export function CollegesPage() {
 
       setCreateSuccess(
         response.adminTemporaryPassword
-          ? `College created. Temporary admin password: ${response.adminTemporaryPassword}`
+          ? `College created. College admin login: ${normalizedAdminEmail}. Temporary password: ${response.adminTemporaryPassword}`
           : 'College created successfully.',
       )
       resetCreateForm()

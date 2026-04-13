@@ -69,6 +69,8 @@ Create the deployment env file once on the EC2 host:
 cp .env.example .env
 ```
 
+`POSTGRES_IMAGE_TAG` defaults to `15-alpine`. Keep that value when reusing an existing Docker volume created by PostgreSQL 15. If you intentionally move to PostgreSQL 16 or newer, migrate the data first or recreate the volume.
+
 ### Required root `.env` values
 
 - `POSTGRES_DB`
@@ -78,6 +80,7 @@ cp .env.example .env
 
 ### Optional root `.env` values
 
+- `POSTGRES_IMAGE_TAG`
 - `FRONTEND_BIND_ADDRESS`
 - `FRONTEND_PORT`
 - `SIMULATOR_BIND_ADDRESS`
@@ -114,7 +117,129 @@ The frontend container is the public entrypoint.
 
 This keeps the backend internal while preserving REST and WebSocket behavior for the browser.
 
-## Exact Deployment Commands
+## Local Docker Quick Start
+
+Use this path when you are running the full stack on your own machine with Docker.
+
+Important:
+
+- run all `docker compose ...` commands from the repository root
+- the frontend UI is the only normal browser entrypoint
+- the backend is reached through the frontend nginx proxy, not by opening port `3000` in the browser
+
+Start from the repo root:
+
+```bash
+cd /home/maheshkumar/projects/CLG_VTS
+```
+
+On first setup only:
+
+```bash
+cp .env.example .env
+```
+
+Start the local Docker stack:
+
+```bash
+cd /home/maheshkumar/projects/CLG_VTS
+docker compose up -d --build
+```
+
+What to open in your browser on local Docker:
+
+- frontend UI: `http://localhost`
+- backend health through nginx: `http://localhost/api/health`
+- Swagger UI through nginx: `http://localhost/api/docs`
+- frontend container health: `http://localhost/health`
+
+Quick answer:
+
+- open `http://localhost`
+
+## Local Simulator
+
+Start the simulator only when you need it:
+
+```bash
+cd /home/maheshkumar/projects/CLG_VTS
+docker compose --profile simulator up -d --build vts-device-simulator
+```
+
+What to open locally:
+
+- simulator UI: `http://127.0.0.1:3011`
+- simulator health: `http://127.0.0.1:3011/health`
+
+The simulator binds to `127.0.0.1:3011`, so it is reachable only from the same machine.
+
+## Local Debug Checklist
+
+When Docker is up but something looks broken, check in this order.
+
+### 1. Confirm container status
+
+```bash
+docker compose ps
+docker compose --profile simulator ps
+```
+
+You want to see:
+
+- `frontend` healthy
+- `backend` healthy
+- `postgres` healthy
+- `mosquitto` healthy
+- `vts-device-simulator` healthy when the simulator profile is enabled
+
+### 2. Check the URLs directly
+
+```bash
+curl http://localhost/health
+curl http://localhost/api/health
+curl http://127.0.0.1:3011/health
+```
+
+Use the simulator health URL only if the simulator profile is running.
+
+### 3. Follow logs for the failing service
+
+```bash
+docker compose logs -f postgres
+docker compose logs -f mosquitto
+docker compose logs -f backend
+docker compose logs -f frontend
+docker compose --profile simulator logs -f vts-device-simulator
+```
+
+### 4. Check the most common root causes
+
+- frontend UI does not open:
+  `frontend` container is not healthy
+- frontend opens but API calls fail:
+  backend is unhealthy, so check `docker compose logs -f backend`
+- backend is unhealthy because Postgres is failing:
+  check `docker compose logs -f postgres`
+- backend is healthy but live telemetry does not move:
+  check `docker compose logs -f mosquitto backend`
+- simulator UI opens but publish does not work:
+  check `docker compose --profile simulator logs -f vts-device-simulator`
+
+### 5. Quick service-level checks
+
+Database:
+
+```bash
+docker compose exec postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+```
+
+MQTT from inside the backend container:
+
+```bash
+docker compose exec backend node -e "require('mqtt').connect('mqtt://mosquitto:1883').on('connect', client => { console.log('mqtt-ok'); client.end(); })"
+```
+
+## EC2 Deployment Commands
 
 Pull the latest code:
 
@@ -136,9 +261,9 @@ docker compose up -d
 
 Expected URLs after startup:
 
-- frontend UI: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}`
-- backend API via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api`
-- Swagger UI via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api/docs`
+- frontend UI: `http://<ec2-public-host-or-dns>`
+- backend API via nginx: `http://<ec2-public-host-or-dns>/api`
+- Swagger UI via nginx: `http://<ec2-public-host-or-dns>/api/docs`
 
 Read logs:
 
@@ -164,62 +289,9 @@ docker compose up -d
 
 Expected URLs after startup:
 
-- frontend UI: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}`
-- backend API via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api`
-- Swagger UI via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api/docs`
-
-## Optional Simulator
-
-Build and start the simulator only when needed:
-
-```bash
-docker compose --profile simulator build vts-device-simulator
-docker compose --profile simulator up -d vts-device-simulator
-```
-
-Expected simulator URLs after startup:
-
-- simulator UI/API: `http://127.0.0.1:${SIMULATOR_PORT:-3011}`
-- simulator health: `http://127.0.0.1:${SIMULATOR_PORT:-3011}/health`
-
-By default the simulator binds to `127.0.0.1:${SIMULATOR_PORT:-3011}`, so it is not publicly exposed.
-
-## Verification
-
-Frontend:
-
-- open `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}`
-
-Backend health through nginx:
-
-```bash
-curl http://127.0.0.1:${FRONTEND_PORT:-80}/api/health
-```
-
-Frontend container health:
-
-```bash
-curl http://127.0.0.1:${FRONTEND_PORT:-80}/health
-```
-
-Database connectivity:
-
-```bash
-docker compose exec postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
-```
-
-MQTT connectivity:
-
-```bash
-docker compose exec backend node -e "require('mqtt').connect('mqtt://mosquitto:1883').on('connect', client => { console.log('mqtt-ok'); client.end(); })"
-```
-
-WebSocket updates:
-
-- open the dashboard in a browser
-- start the simulator profile
-- publish telemetry from the simulator
-- confirm live updates arrive without a page refresh
+- frontend UI: `http://<ec2-public-host-or-dns>`
+- backend API via nginx: `http://<ec2-public-host-or-dns>/api`
+- Swagger UI via nginx: `http://<ec2-public-host-or-dns>/api/docs`
 
 ## Low-Memory Guidance For `t3.micro`
 
@@ -243,9 +315,9 @@ docker compose up -d
 
 Expected URLs after startup:
 
-- frontend UI: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}`
-- backend API via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api`
-- Swagger UI via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api/docs`
+- frontend UI: `http://<ec2-public-host-or-dns>`
+- backend API via nginx: `http://<ec2-public-host-or-dns>/api`
+- Swagger UI via nginx: `http://<ec2-public-host-or-dns>/api/docs`
 
 If you also need the simulator:
 
@@ -256,8 +328,8 @@ docker compose --profile simulator up -d vts-device-simulator
 
 Expected simulator URLs after startup:
 
-- simulator UI/API: `http://127.0.0.1:${SIMULATOR_PORT:-3011}`
-- simulator health: `http://127.0.0.1:${SIMULATOR_PORT:-3011}/health`
+- simulator UI/API: `http://127.0.0.1:3011`
+- simulator health: `http://127.0.0.1:3011/health`
 
 If builds still OOM, add swap before rebuilding:
 
@@ -287,24 +359,23 @@ Only publish backend, MQTT, or simulator ports if something outside Docker truly
 
 ## Troubleshooting
 
-Backend never becomes healthy:
+Frontend UI does not open locally:
 
-- run `docker compose logs -f backend`
-- confirm `.env` values for `DB_PASSWORD` and `JWT_SECRET`
-- confirm PostgreSQL is healthy
-- confirm Mosquitto is healthy
+- open `http://localhost`
+- if that fails, run `docker compose ps`
+- then run `docker compose logs -f frontend`
 
-Frontend loads but API calls fail:
+Frontend opens but data is missing:
 
-- run `docker compose logs -f frontend backend`
-- confirm `VITE_API_BASE_URL=/api`
-- confirm `/api/health` returns `200`
+- check `http://localhost/api/health`
+- if `/api/health` fails, run `docker compose logs -f backend`
+- if backend logs mention database startup, run `docker compose logs -f postgres`
 
-Simulator does not publish:
+Simulator UI opens but publish fails:
 
-- start it with the `simulator` profile
+- check `http://127.0.0.1:3011/health`
 - run `docker compose --profile simulator logs -f vts-device-simulator`
-- confirm the simulator health endpoint shows `mqtt.connected: true`
+- confirm the health JSON shows `transports.mqtt.connected: true`
 
 Builds fail on low memory:
 
@@ -325,9 +396,9 @@ docker compose up -d
 
 Expected URLs after startup:
 
-- frontend UI: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}`
-- backend API via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api`
-- Swagger UI via nginx: `http://<ec2-public-host-or-dns>:${FRONTEND_PORT:-80}/api/docs`
+- frontend UI: `http://<ec2-public-host-or-dns>`
+- backend API via nginx: `http://<ec2-public-host-or-dns>/api`
+- Swagger UI via nginx: `http://<ec2-public-host-or-dns>/api/docs`
 
 Return to the main branch when you are ready:
 

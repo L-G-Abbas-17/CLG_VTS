@@ -35,27 +35,42 @@ export const useNotificationStore = create<NotificationStore>()((set) => ({
   ...initialState,
 
   loadNotifications: async () => {
-    const notifications = await notificationService.getNotifications({ page: 1, limit: 50 })
-    set({
-      notifications,
-      unreadCount: countUnread(notifications),
-      isLoaded: true,
-    })
+    try {
+      const notifications = await notificationService.getNotifications({ page: 1, limit: 50 })
+      set({
+        notifications,
+        unreadCount: countUnread(notifications),
+        isLoaded: true,
+      })
+    } catch (error) {
+      console.warn('Failed to load notifications', error)
+      set({ notifications: [], unreadCount: 0, isLoaded: true })
+    }
   },
 
   refreshNotifications: async (options) => {
-    const notifications = await notificationService.getNotifications({ page: 1, limit: 50 })
-    set((state) => {
-      const previousIds = new Set(options?.reset ? [] : state.notifications.map((item) => item.id))
-      const newToasts = notifications.filter((item) => !item.read && !previousIds.has(item.id))
+    try {
+      const notifications = await notificationService.getNotifications({ page: 1, limit: 50 })
+      set((state) => {
+        const previousIds = new Set(options?.reset ? [] : state.notifications.map((item) => item.id))
+        const newToasts = notifications.filter((item) => !item.read && !previousIds.has(item.id))
 
-      return {
-        notifications,
-        toasts: options?.reset ? [] : [...newToasts, ...state.toasts].slice(0, 5),
-        unreadCount: countUnread(notifications),
+        return {
+          notifications,
+          toasts: options?.reset ? [] : [...newToasts, ...state.toasts].slice(0, 5),
+          unreadCount: countUnread(notifications),
+          isLoaded: true,
+        }
+      })
+    } catch (error) {
+      console.warn('Failed to refresh notifications', error)
+      set((state) => ({
+        notifications: options?.reset ? [] : state.notifications,
+        toasts: options?.reset ? [] : state.toasts,
+        unreadCount: options?.reset ? 0 : state.unreadCount,
         isLoaded: true,
-      }
-    })
+      }))
+    }
   },
 
   markAsRead: async (notificationId) => {

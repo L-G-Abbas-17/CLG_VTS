@@ -283,7 +283,7 @@ app.post('/auth/logout', async (request, response) => {
   response.json({ success: true });
 });
 
-app.get('/health', requireSimulatorAuth, (_request, response) => {
+app.get('/health', (_request, response) => {
   response.json({
     ok: true,
     defaultProtocol,

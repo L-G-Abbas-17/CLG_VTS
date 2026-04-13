@@ -21,6 +21,12 @@ import { DeviceCommandService } from './device-command.service'
     WebsocketModule,
   ],
   providers: [MqttService, TelemetryHandler, TelemetryStateService, DeviceAckService, DeviceCommandService],
-  exports: [TelemetryHandler, MqttService, DeviceAckService, DeviceCommandService],
+  exports: [
+    TelemetryHandler,
+    MqttService,
+    TelemetryStateService,
+    DeviceAckService,
+    DeviceCommandService,
+  ],
 })
 export class MqttModule {}

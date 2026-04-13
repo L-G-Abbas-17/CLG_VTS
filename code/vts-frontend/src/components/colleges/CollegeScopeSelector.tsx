@@ -64,11 +64,13 @@ export function CollegeScopeSelector({
         value={selectedCollegeId ?? ''}
         onChange={(event) => setSelectedCollegeId(event.target.value || null)}
         disabled={isLoading}
-        className='rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-100 dark:focus:border-[#38bdf8]'
+        className='rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-60 [color-scheme:light] dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-100 dark:focus:border-[#38bdf8] dark:[color-scheme:dark]'
       >
-        <option value=''>{isLoading ? 'Loading colleges...' : 'Select a college'}</option>
+        <option value='' className='bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100'>
+          {isLoading ? 'Loading colleges...' : 'Select a college'}
+        </option>
         {colleges.map((college) => (
-          <option key={college.id} value={college.id}>
+          <option key={college.id} value={college.id} className='bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100'>
             {college.name}
           </option>
         ))}

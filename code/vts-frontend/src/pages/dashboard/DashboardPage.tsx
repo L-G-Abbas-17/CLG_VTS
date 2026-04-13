@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { vehicleService } from '@services/vehicleService'
 import { notificationService } from '@services/notificationService'
 import type { Vehicle } from '../../types/vehicle'
+import type { Notification } from '../../types/notification'
 
 type ActivityItem = {
   id: string
@@ -70,6 +71,10 @@ function mapNotificationToActivity(notification: {
   }
 }
 
+function isNotificationLikeArray(value: unknown): value is Notification[] {
+  return Array.isArray(value)
+}
+
 export function DashboardPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
@@ -90,13 +95,19 @@ export function DashboardPage() {
       setActivities([])
 
       try {
-        const [nextFleet, notifications] = await Promise.all([
+        const [fleetResult, notificationsResult] = await Promise.allSettled([
           vehicleService.getVehicles({ page: 1, limit: 500 }),
           notificationService.getNotifications({ page: 1, limit: 10 }),
         ])
 
+        const nextFleet = fleetResult.status === 'fulfilled' ? fleetResult.value : []
+        const nextNotifications =
+          notificationsResult.status === 'fulfilled' && isNotificationLikeArray(notificationsResult.value)
+            ? notificationsResult.value
+            : []
+
         setFleet(nextFleet)
-        setActivities(notifications.slice(0, 10).map((notification) => mapNotificationToActivity(notification)))
+        setActivities(nextNotifications.slice(0, 10).map((notification) => mapNotificationToActivity(notification)))
       } finally {
         setIsLoading(false)
       }
