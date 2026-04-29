@@ -30,7 +30,7 @@ All variables are read from `.env` (local) or process environment.
 | MQTT_BROKER_URL | Broker URL (e.g. mqtt://localhost:1883) |
 | MQTT_USERNAME | Broker username (optional) |
 | MQTT_PASSWORD | Broker password (optional) |
-| MQTT_TELEMETRY_TOPIC | Topic pattern (default: vts/+/telemetry) |
+| MQTT_TELEMETRY_TOPIC | Topic pattern (default: vts/devices/+/telemetry) |
 
 ## WebSocket
 | Variable | Description |

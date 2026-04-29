@@ -11,7 +11,7 @@ import { Pool } from 'pg';
 import { fileURLToPath } from 'node:url';
 
 type TelemetryPayload = {
-  device_id: string;
+  imei_no: string;
   timestamp: string;
   lat: number;
   lon: number;
@@ -167,6 +167,56 @@ async function loadAssignedDevices(): Promise<AssignedDevice[]> {
   `);
 
   return result.rows.filter((device: AssignedDevice) => device.device_id);
+}
+
+function getDeviceIdFromTelemetryTopic(topic?: string) {
+  if (!topic) {
+    return null;
+  }
+
+  const parts = topic.split('/');
+
+  if (parts.length === 3 && parts[0] === 'vts' && parts[2] === 'telemetry') {
+    return parts[1];
+  }
+
+  if (parts.length === 4 && parts[0] === 'vts' && parts[1] === 'devices' && parts[3] === 'telemetry') {
+    return parts[2];
+  }
+
+  return null;
+}
+
+async function findImeiForTelemetryPayload(payload: TelemetryPayload, topic?: string) {
+  const candidates = [
+    getDeviceIdFromTelemetryTopic(topic),
+    payload.imei_no,
+  ].filter((value): value is string => Boolean(value?.trim()));
+
+  for (const candidate of candidates) {
+    const result = await pool.query<{ imei: string | null }>(
+      'SELECT imei FROM devices WHERE imei = $1 LIMIT 1',
+      [candidate.trim()],
+    );
+    const imei = result.rows[0]?.imei?.trim();
+    if (imei) {
+      return imei;
+    }
+  }
+
+  return null;
+}
+
+async function normalizeTelemetryPayload(payload: TelemetryPayload, topic?: string): Promise<TelemetryPayload> {
+  const imei = await findImeiForTelemetryPayload(payload, topic);
+  if (!imei) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    imei_no: imei,
+  };
 }
 
 function sendViaTcp(host: string, targetPort: number, payload: TelemetryPayload) {
@@ -329,13 +379,15 @@ app.post('/publish', requireSimulatorAuth, async (request, response) => {
   }
 
   try {
+    const normalizedPayload = await normalizeTelemetryPayload(payload, topic);
+
     if (protocol === 'mqtt') {
       if (!topic) {
         response.status(400).json({ message: 'topic is required for MQTT' });
         return;
       }
 
-      await sendViaMqtt(topic, payload);
+      await sendViaMqtt(topic, normalizedPayload);
       response.json({ success: true, protocol, topic });
       return;
     }
@@ -349,13 +401,13 @@ app.post('/publish', requireSimulatorAuth, async (request, response) => {
     }
 
     if (protocol === 'tcp') {
-      await sendViaTcp(resolvedHost, resolvedPort, payload);
+      await sendViaTcp(resolvedHost, resolvedPort, normalizedPayload);
       response.json({ success: true, protocol, host: resolvedHost, port: resolvedPort });
       return;
     }
 
     if (protocol === 'udp') {
-      await sendViaUdp(resolvedHost, resolvedPort, payload);
+      await sendViaUdp(resolvedHost, resolvedPort, normalizedPayload);
       response.json({ success: true, protocol, host: resolvedHost, port: resolvedPort });
       return;
     }

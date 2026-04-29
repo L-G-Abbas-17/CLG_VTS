@@ -6,6 +6,8 @@ export type ApiError = {
 
 const DEFAULT_BASE_URL = '/api'
 const SESSION_STORAGE_KEY = 'vts-auth-session'
+const AUTH_STORE_STORAGE_KEY = 'vts-auth-store'
+let isRedirectingToLogin = false
 
 function getBaseUrl(): string {
   return ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? DEFAULT_BASE_URL).replace(/\/$/, '')
@@ -20,6 +22,20 @@ function getAuthToken(): string | null {
   } catch {
     return null
   }
+}
+
+function clearAuthSession(): void {
+  localStorage.removeItem(SESSION_STORAGE_KEY)
+  localStorage.removeItem(AUTH_STORE_STORAGE_KEY)
+}
+
+function redirectToLogin(): void {
+  if (isRedirectingToLogin || window.location.pathname === '/login') {
+    return
+  }
+
+  isRedirectingToLogin = true
+  window.location.replace('/login')
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -51,6 +67,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const body = await parseJson<{ message?: string; error?: string; statusCode?: number }>(response)
     const message = body?.message ?? body?.error ?? `Request failed with ${response.status}`
     const error: ApiError = { status: response.status, message, details: body }
+
+    if (response.status === 401 && path !== '/auth/login') {
+      clearAuthSession()
+      redirectToLogin()
+    }
+
     throw error
   }
 

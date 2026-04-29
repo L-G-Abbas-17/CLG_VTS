@@ -34,7 +34,7 @@
 ## MQTT not receiving data
 - Confirm broker URL and topic:
   - `MQTT_BROKER_URL`
-  - `MQTT_TELEMETRY_TOPIC` (default: `vts/+/telemetry`)
+  - `MQTT_TELEMETRY_TOPIC` (default: `vts/devices/+/telemetry`)
 - Check broker logs and device publish topic.
 
 ## WebSocket updates not received

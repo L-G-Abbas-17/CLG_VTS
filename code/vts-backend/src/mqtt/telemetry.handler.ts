@@ -11,7 +11,7 @@ import { TelemetryStateService, type VehicleRuntimeState } from './telemetry-sta
 import { CreateTelemetryDto } from '../modules/telemetry/dto/create-telemetry.dto'
 
 type RawTelemetryPayload = {
-  device_id?: string
+  imei_no?: string
   timestamp?: string
   lat: number
   lon: number
@@ -40,20 +40,19 @@ export class TelemetryHandler {
 
   async handle(topic: string, payload: string) {
     let parsedPayload: RawTelemetryPayload | null = null
-    let deviceId: string | null = this.getDeviceIdFromTopic(topic)
+    let imeiNo: string | null = this.getDeviceIdFromTopic(topic)
 
     try {
       const data = JSON.parse(payload) as RawTelemetryPayload
       parsedPayload = data
       console.log(`[MQTT] message received topic=${topic}`)
 
-      deviceId = data.device_id ?? deviceId
-      if (!deviceId || !this.isValidPayload(data)) {
+      if (!imeiNo || !this.isValidPayload(data)) {
         return
       }
 
       await this.handleNormalizedTelemetry({
-        deviceId,
+        imei_no: imeiNo,
         lat: Number(data.lat),
         lon: Number(data.lon),
         speed: Number(data.speed_kmph),
@@ -66,7 +65,7 @@ export class TelemetryHandler {
     } catch (error) {
       this.logTelemetryFailure({
         error,
-        deviceId,
+        deviceId: imeiNo,
         topic,
         payload: parsedPayload ?? payload,
         timestamp: new Date().toISOString(),
@@ -76,9 +75,15 @@ export class TelemetryHandler {
   }
 
   async handleNormalizedTelemetry(payload: CreateTelemetryDto) {
-    const device = await this.devicesService.findByUid(payload.deviceId)
+    const deviceUid = payload.imei_no?.trim()
+    if (!deviceUid) {
+      this.logger.warn('[TELEMETRY] Missing imei_no')
+      return
+    }
+
+    const device = await this.devicesService.findByTelemetryImei(deviceUid)
     if (!device) {
-      console.warn(`[TELEMETRY] Unknown device ${payload.deviceId}`)
+      console.warn(`[TELEMETRY] Unknown device ${deviceUid}`)
       return
     }
 

@@ -2,8 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { CreateTelemetryDto } from '../modules/telemetry/dto/create-telemetry.dto'
 
 type RawTelemetryPayload = {
-  deviceId?: unknown
-  device_id?: unknown
+  imei_no?: unknown
   lat?: unknown
   lng?: unknown
   lon?: unknown
@@ -36,7 +35,7 @@ export class ParserService {
       return null
     }
 
-    const deviceId = this.asTrimmedString(parsed.deviceId ?? parsed.device_id)
+    const imeiNo = this.asTrimmedString(parsed.imei_no)
     const lat = this.asNumber(parsed.lat)
     const lon = this.asNumber(parsed.lng ?? parsed.lon)
     const speed = this.asNumber(parsed.speed ?? parsed.speed_kmph)
@@ -46,23 +45,23 @@ export class ParserService {
     const ignition = typeof parsed.ignition === 'boolean' ? parsed.ignition : true
     const timestamp = this.normalizeTimestamp(parsed.timestamp)
 
-    if (!deviceId) {
-      this.logger.warn(`ingestion_packet_ignored source=${source} reason=missing_device_id`)
+    if (!imeiNo) {
+      this.logger.warn(`ingestion_packet_ignored source=${source} reason=missing_imei_no`)
       return null
     }
 
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      this.logger.warn(`ingestion_packet_ignored source=${source} deviceId=${deviceId} reason=missing_coordinates`)
+      this.logger.warn(`ingestion_packet_ignored source=${source} imeiNo=${imeiNo} reason=missing_coordinates`)
       return null
     }
 
     if (!Number.isFinite(speed)) {
-      this.logger.warn(`ingestion_packet_ignored source=${source} deviceId=${deviceId} reason=invalid_speed`)
+      this.logger.warn(`ingestion_packet_ignored source=${source} imeiNo=${imeiNo} reason=invalid_speed`)
       return null
     }
 
     return {
-      deviceId,
+      imei_no: imeiNo,
       lat,
       lon,
       speed,

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 import { TelemetryRecord } from './telemetry.entity'
@@ -237,7 +237,8 @@ export class TelemetryService {
   }
 
   async ingest(payload: CreateTelemetryDto): Promise<TelemetryRecord> {
-    const device = await this.deviceRepo.findOne({ where: { deviceId: payload.deviceId } })
+    const deviceUid = this.resolveTelemetryDeviceUid(payload)
+    const device = await this.deviceRepo.findOne({ where: { imei: deviceUid } })
     if (!device || !device.assignedVehicleId) {
       throw new NotFoundException('Device not assigned to a vehicle')
     }
@@ -301,5 +302,14 @@ export class TelemetryService {
 
   async processTelemetry(payload: CreateTelemetryDto): Promise<TelemetryRecord> {
     return this.ingest(payload)
+  }
+
+  private resolveTelemetryDeviceUid(payload: CreateTelemetryDto): string {
+    const deviceUid = payload.imei_no?.trim()
+    if (!deviceUid) {
+      throw new BadRequestException('imei_no is required')
+    }
+
+    return deviceUid
   }
 }

@@ -47,6 +47,11 @@
 #endif
 // DEVICE_ID must match the old backend device record used for assigned-device flow.
 
+#ifndef DEVICE_IMEI
+#define DEVICE_IMEI ""
+#endif
+// Optional fallback for telemetry imei_no when the modem does not return AT+CGSN.
+
 #ifndef GNSS_FIX_TIMEOUT_MS
 #define GNSS_FIX_TIMEOUT_MS 15000
 #endif

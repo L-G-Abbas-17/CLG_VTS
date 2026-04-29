@@ -13,6 +13,7 @@ import {
 
 type SimulatorState = {
   deviceId: string;
+  imeiNo: string;
   vehicleName: string;
   lat: number;
   lng: number;
@@ -43,6 +44,7 @@ type TransportDefaults = {
 
 const defaultState: SimulatorState = {
   deviceId: 'SIM-001',
+  imeiNo: '',
   vehicleName: 'College Bus 1',
   lat: 8.7139,
   lng: 77.7567,
@@ -105,10 +107,10 @@ export default function Simulator() {
   const stateRef = useRef(state);
   const telemetryTopic = useMemo(
     () =>
-      state.deviceId.trim()
-        ? `${MQTT_TOPIC_PREFIX}/${state.deviceId.trim()}/telemetry`
-        : `${MQTT_TOPIC_PREFIX}/{device_id}/telemetry`,
-    [state.deviceId],
+      state.imeiNo.trim()
+        ? `${MQTT_TOPIC_PREFIX}/devices/${state.imeiNo.trim()}/telemetry`
+        : `${MQTT_TOPIC_PREFIX}/devices/{imei_no}/telemetry`,
+    [state.imeiNo],
   );
   const transportSummary = useMemo(() => {
     if (transport.protocol === 'mqtt') {
@@ -129,6 +131,7 @@ export default function Simulator() {
         setState((prev) => ({
           ...prev,
           deviceId: first.device_id ?? prev.deviceId,
+          imeiNo: first.imei ?? prev.imeiNo,
           vehicleName: first.assignedVehicleName ?? first.device_id ?? '',
         }));
       }
@@ -203,7 +206,7 @@ export default function Simulator() {
     await loadPublisherHealth();
   };
 
-  const canEnterGame = Boolean(state.deviceId.trim());
+  const canEnterGame = Boolean(state.deviceId.trim()) && Boolean(state.imeiNo.trim());
 
   const setPosition = (lat: number, lng: number) => {
     setState((prev) => ({ ...prev, lat, lng }));
@@ -253,7 +256,7 @@ export default function Simulator() {
   const sendOnce = useCallback(async () => {
     const snapshot = stateRef.current;
     const payload = {
-      device_id: snapshot.deviceId,
+      imei_no: snapshot.imeiNo,
       timestamp: new Date().toISOString(),
       lat: snapshot.lat,
       lon: snapshot.lng,
@@ -268,7 +271,7 @@ export default function Simulator() {
         transport.protocol === 'mqtt'
           ? {
               protocol: 'mqtt',
-              topic: `${MQTT_TOPIC_PREFIX}/${snapshot.deviceId}/telemetry`,
+              topic: `${MQTT_TOPIC_PREFIX}/devices/${snapshot.imeiNo}/telemetry`,
               payload,
             }
           : {
@@ -280,7 +283,7 @@ export default function Simulator() {
       );
       setPublisherStatus('ready');
       setPublisherError('');
-      pushLog(`${transport.protocol.toUpperCase()} sent: ${payload.device_id} -> ${transportSummary}`);
+      pushLog(`${transport.protocol.toUpperCase()} sent: ${payload.imei_no} -> ${transportSummary}`);
     } catch (error) {
       const message = getApiErrorMessage(error, `${transport.protocol.toUpperCase()} send failed.`);
       setPublisherStatus('disconnected');
@@ -540,6 +543,7 @@ export default function Simulator() {
                       setState((prev) => ({
                         ...prev,
                         deviceId: e.target.value,
+                        imeiNo: selected?.imei ?? '',
                         vehicleName: selected?.assignedVehicleName ?? selected?.device_id ?? '',
                       }));
                     }}

@@ -2,9 +2,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { IsBoolean, IsISO8601, IsNumber, IsOptional, IsString } from 'class-validator'
 
 export class CreateTelemetryDto {
-  @ApiProperty({ example: 'DEV_0003', description: 'Device identifier' })
+  @ApiProperty({ example: '123456789012345', description: 'IMEI number used by the telemetry device' })
   @IsString()
-  deviceId!: string
+  imei_no!: string
 
   @ApiProperty({ example: 12.9716, description: 'Latitude' })
   @IsNumber()

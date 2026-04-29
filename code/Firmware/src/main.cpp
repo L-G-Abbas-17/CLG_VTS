@@ -18,6 +18,7 @@ const char* mqtt_client_prefix = "ESP32_LTE_GPS_Client_";
 const char* firmware_version = "0.2.0";
 
 const char* device_id = DEVICE_ID;
+const char* configured_device_imei = DEVICE_IMEI;
 const char* notify_number = "+917094332015"; // replace with your number
 
 const int sim_rx_pin = EC25_RX;
@@ -111,6 +112,7 @@ String buildMqttClientId();
 String buildTelemetryJson(const TelemetrySample& sample);
 String buildIdentityJson();
 String buildAckJson(unsigned long intervalMs);
+String readImei();
 String readImsi();
 String uint64ToString(uint64_t value);
 bool tryBuildIsoTimestamp(const String& utc, const String& date, String& isoTimestamp);
@@ -453,7 +455,9 @@ String buildMqttClientId() {
 }
 
 String buildTelemetryTopic() {
-  return "vts/devices/" + String(device_id) + "/telemetry";
+  String imei = readImei();
+  String imeiNo = imei.length() > 0 ? imei : String(configured_device_imei);
+  return "vts/devices/" + imeiNo + "/telemetry";
 }
 
 String buildIdentityTopic() {
@@ -773,7 +777,9 @@ bool parseGPS(const String& rawInput, TelemetrySample& sample) {
 
 String buildTelemetryJson(const TelemetrySample& sample) {
   String json = "{";
-  json += "\"device_id\":\"" + String(device_id) + "\",";
+  String imei = readImei();
+  String imeiNo = imei.length() > 0 ? imei : String(configured_device_imei);
+  json += "\"imei_no\":\"" + imeiNo + "\",";
   if (sample.hasIsoTimestamp) {
     json += "\"timestamp\":\"" + sample.timestampIso + "\",";
   }
@@ -862,6 +868,19 @@ String readImsi() {
 
   // TODO: replace this fallback once modem identity retrieval is validated on the target hardware.
   return "unknown-imsi";
+}
+
+String readImei() {
+  String response = readATResponse("AT+CGSN", 2000);
+  String digits = "";
+  for (int i = 0; i < response.length(); i++) {
+    char c = response.charAt(i);
+    if (c >= '0' && c <= '9') {
+      digits += c;
+    }
+  }
+
+  return digits.length() > 0 ? digits : "";
 }
 
 String uint64ToString(uint64_t value) {

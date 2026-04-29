@@ -18,7 +18,7 @@ NestJS Backend -> PostgreSQL
 
 ## System components
 - **Edge devices (e.g., ESP32/IoT trackers)**
-  - Publish telemetry to MQTT topic `vts/<deviceId>/telemetry`.
+  - Publish telemetry to MQTT topic `vts/devices/<imei_no>/telemetry`.
 - **Device simulator (Node.js)**
   - Sends MQTT telemetry to the broker (see `vts-device-simulator`).
 - **MQTT Broker (Mosquitto, optional)**
@@ -37,7 +37,7 @@ NestJS Backend -> PostgreSQL
   - Workflow engine for long‑running trip/event orchestration (requires external server).
 
 ## Data flow (end‑to‑end)
-1. Device publishes telemetry to `vts/<deviceId>/telemetry` or a simulator posts to `POST /telemetry`.
+1. Device publishes telemetry to `vts/devices/<imei_no>/telemetry` or a simulator posts to `POST /telemetry`.
 2. Backend validates payload and maps `deviceId` to a vehicle.
 3. Telemetry normalized and stored in PostgreSQL.
 4. Trips/events are detected and persisted.

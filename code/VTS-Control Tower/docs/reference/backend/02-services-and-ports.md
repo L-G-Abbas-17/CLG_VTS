@@ -15,7 +15,7 @@
 - WebSocket: `ws://localhost:3000/telemetry`
 
 ## MQTT Topics
-- Publish telemetry: `vts/<deviceId>/telemetry`
+- Publish telemetry: `vts/devices/<imei_no>/telemetry`
 
 ## Database (local dev)
 - Host: `localhost`

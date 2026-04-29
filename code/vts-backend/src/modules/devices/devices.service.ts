@@ -45,6 +45,15 @@ export class DevicesService {
     return device
   }
 
+  async findByTelemetryImei(imei: string): Promise<Device | null> {
+    const trimmed = imei.trim()
+    if (!trimmed) {
+      return null
+    }
+
+    return this.deviceRepo.findOne({ where: { imei: trimmed } })
+  }
+
   private async findByIdForWrite(id: string, actor: AuthenticatedUser): Promise<Device> {
     const device = await this.deviceRepo.findOne({ where: { id } })
     if (!device) {
