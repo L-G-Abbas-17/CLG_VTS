@@ -1,7 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger'
-import { IsBoolean, IsOptional, IsString } from 'class-validator'
+import { IsBoolean, IsOptional, IsString, IsUUID } from 'class-validator'
 
 export class TelemetryFilterDto {
+  @ApiPropertyOptional({
+    example: '40025460-5dab-4657-8701-0eb320ce2bc3',
+    description: 'Filter by college id for super admin scoped reads',
+  })
+  @IsOptional()
+  @IsUUID()
+  collegeId?: string
+
   @ApiPropertyOptional({
     example: '4f6c2e1f-2e4a-4f7e-9c0d-9b7a5c0b1d2e',
     description: 'Filter by vehicle id',

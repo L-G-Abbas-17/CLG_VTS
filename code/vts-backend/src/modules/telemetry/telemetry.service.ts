@@ -12,7 +12,7 @@ import { GeofencesService } from '../geofences/geofences.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import type { Geofence } from '../geofences/geofence.entity'
 import type { AuthenticatedUser } from '../../common/auth/authenticated-user.interface'
-import { applyCollegeScope, mergeCollegeWhere } from '../../common/tenant/tenant-scope'
+import { applyRequestedTenantScope } from '../../common/tenant/tenant-scope'
 
 type LastKnownLocation = {
   lat: number
@@ -41,7 +41,7 @@ export class TelemetryService {
 
   async list(actor: AuthenticatedUser, filters?: TelemetryFilterDto): Promise<TelemetryRecord[]> {
     const query = this.telemetryRepo.createQueryBuilder('t').orderBy('t.timestamp', 'DESC')
-    applyCollegeScope(query, 't', actor)
+    applyRequestedTenantScope(query, 't', actor, filters?.collegeId)
 
     if (filters?.vehicleId) {
       query.andWhere('t.vehicleId = :vehicleId', { vehicleId: filters.vehicleId })
