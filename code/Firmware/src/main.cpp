@@ -1,4 +1,5 @@
 #include <HardwareSerial.h>
+#include <Preferences.h>
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -18,14 +19,13 @@ const char* mqtt_client_prefix = "ESP32_LTE_GPS_Client_";
 const char* firmware_version = "0.2.0";
 
 const char* configured_device_imei = DEVICE_IMEI;
-const char* notify_number = "+917094332015"; // replace with your number
+const char* notify_number = "+918248034240"; // replace with your number
 
 const int sim_rx_pin = EC25_RX;
 const int sim_tx_pin = EC25_TX;
 const int ignition_input_pin = IGNITION_PIN;
 const bool ignition_fallback_state = true; // TODO: replace with real ignition input before production deployment.
 
-unsigned long gps_poll_interval_ms = 5000;
 const uint64_t fallback_epoch_base_ms = 1700000000000ULL;
 const int default_battery_mv = 3900;
 const int default_signal_dbm = -70;
@@ -61,6 +61,7 @@ struct QueuedMessage {
 // ----------------------
 // State
 // ----------------------
+Preferences preferences;
 int lastKnownSignalDbm = default_signal_dbm;
 int lastKnownBatteryMv = default_battery_mv;
 bool mqttConnected = false;
@@ -69,6 +70,13 @@ int queueHead = 0;
 int queueCount = 0;
 unsigned long lastTelemetryPollAtMs = 0;
 String cachedDeviceImei = "";
+unsigned long ignitionOnPollIntervalMs = 5000;
+unsigned long ignitionOffPollIntervalMs = 10000;
+const unsigned long minTelemetryIntervalMs = 1000;
+const unsigned long maxTelemetryIntervalMs = 60000;
+const char* nvs_namespace = "vts_cfg";
+const char* nvs_ignition_on_interval_key = "onInterval";
+const char* nvs_ignition_off_interval_key = "offInterval";
 
 // ----------------------
 // Function prototypes
@@ -101,6 +109,9 @@ bool validateApnConfig();
 bool hasMqttCredentials();
 bool validateMqttBrokerConfig();
 void logBootConfiguration();
+void loadIntervalsFromNvs();
+bool saveIntervalsToNvs(unsigned long ignitionOnIntervalMs, unsigned long ignitionOffIntervalMs);
+bool isValidTelemetryInterval(unsigned long intervalMs);
 void sendStartupSMS();
 bool parseGPS(const String& raw, TelemetrySample& sample);
 float parseLatLon(String s);
@@ -112,7 +123,7 @@ String buildMqttClientId();
 String getDeviceImei();
 String buildTelemetryJson(const TelemetrySample& sample);
 String buildIdentityJson();
-String buildAckJson(unsigned long intervalMs);
+String buildAckJson(unsigned long ignitionOnIntervalMs, unsigned long ignitionOffIntervalMs);
 String readImei();
 String readImsi();
 String uint64ToString(uint64_t value);
@@ -138,6 +149,7 @@ void setup() {
   sim.begin(UART_BAUD, SERIAL_8N1, sim_rx_pin, sim_tx_pin);
   delay(3000);
 
+  loadIntervalsFromNvs();
   logBootConfiguration();
 
   if (ignition_input_pin >= 0) {
@@ -174,7 +186,9 @@ void loop() {
   }
 
   unsigned long now = millis();
-  if (now - lastTelemetryPollAtMs < gps_poll_interval_ms) {
+  bool currentIgnition = readIgnitionState();
+  unsigned long activePollIntervalMs = currentIgnition ? ignitionOnPollIntervalMs : ignitionOffPollIntervalMs;
+  if (now - lastTelemetryPollAtMs < activePollIntervalMs) {
     return;
   }
 
@@ -202,7 +216,7 @@ void loop() {
           continue;
         }
 
-        sample.ignition = readIgnitionState();
+        sample.ignition = currentIgnition;
         sample.batteryMv = readBatteryMillivolts();
         sample.signalDbm = readSignalDbm();
 
@@ -231,7 +245,7 @@ void loop() {
       return;
     }
 
-    sample.ignition = readIgnitionState();
+    sample.ignition = currentIgnition;
     sample.batteryMv = readBatteryMillivolts();
     sample.signalDbm = readSignalDbm();
 
@@ -378,8 +392,61 @@ void logBootConfiguration() {
   Serial.println("  MQTT Client: " + buildMqttClientId());
   Serial.println("  Telemetry Topic: " + buildTelemetryTopic());
   Serial.println("  Identity Topic: " + buildIdentityTopic());
+  Serial.println("  Ignition ON Interval: " + String(ignitionOnPollIntervalMs) + " ms");
+  Serial.println("  Ignition OFF Interval: " + String(ignitionOffPollIntervalMs) + " ms");
   Serial.println("  EC25 RX/TX: " + String(sim_rx_pin) + "/" + String(sim_tx_pin));
   Serial.println("  Ignition Pin: " + String(ignition_input_pin));
+}
+
+void loadIntervalsFromNvs() {
+  if (!preferences.begin(nvs_namespace, true)) {
+    Serial.println("WARNING: Failed to open NVS for reading intervals; using defaults");
+    return;
+  }
+
+  unsigned long savedIgnitionOnInterval = preferences.getULong(
+    nvs_ignition_on_interval_key,
+    ignitionOnPollIntervalMs
+  );
+  unsigned long savedIgnitionOffInterval = preferences.getULong(
+    nvs_ignition_off_interval_key,
+    ignitionOffPollIntervalMs
+  );
+  preferences.end();
+
+  if (isValidTelemetryInterval(savedIgnitionOnInterval)) {
+    ignitionOnPollIntervalMs = savedIgnitionOnInterval;
+  } else {
+    Serial.println("WARNING: Ignoring invalid NVS ignition ON interval: " + String(savedIgnitionOnInterval));
+  }
+
+  if (isValidTelemetryInterval(savedIgnitionOffInterval)) {
+    ignitionOffPollIntervalMs = savedIgnitionOffInterval;
+  } else {
+    Serial.println("WARNING: Ignoring invalid NVS ignition OFF interval: " + String(savedIgnitionOffInterval));
+  }
+}
+
+bool saveIntervalsToNvs(unsigned long ignitionOnIntervalMs, unsigned long ignitionOffIntervalMs) {
+  if (!preferences.begin(nvs_namespace, false)) {
+    Serial.println("ERROR: Failed to open NVS for writing intervals");
+    return false;
+  }
+
+  size_t writtenOn = preferences.putULong(nvs_ignition_on_interval_key, ignitionOnIntervalMs);
+  size_t writtenOff = preferences.putULong(nvs_ignition_off_interval_key, ignitionOffIntervalMs);
+  preferences.end();
+
+  if (writtenOn == 0 || writtenOff == 0) {
+    Serial.println("ERROR: Failed to persist one or more telemetry intervals to NVS");
+    return false;
+  }
+
+  return true;
+}
+
+bool isValidTelemetryInterval(unsigned long intervalMs) {
+  return intervalMs >= minTelemetryIntervalMs && intervalMs <= maxTelemetryIntervalMs;
 }
 
 bool setupLTE() {
@@ -819,11 +886,12 @@ String buildIdentityJson() {
   return json;
 }
 
-String buildAckJson(unsigned long intervalMs) {
+String buildAckJson(unsigned long ignitionOnIntervalMs, unsigned long ignitionOffIntervalMs) {
   String json = "{";
   json += "\"type\":\"ack\",";
   json += "\"status\":\"success\",";
-  json += "\"interval\":" + String(intervalMs);
+  json += "\"ignitionOnInterval\":" + String(ignitionOnIntervalMs) + ",";
+  json += "\"ignitionOffInterval\":" + String(ignitionOffIntervalMs);
   json += "}";
   return json;
 }
@@ -845,22 +913,60 @@ void handleCommand(const String& payload) {
     return;
   }
 
-  unsigned long requestedIntervalMs = 0;
-  if (!extractJsonUnsignedLongValue(payload, "interval", requestedIntervalMs)) {
-    Serial.println("Ignoring config_update: missing or invalid interval");
+  unsigned long requestedIgnitionOnIntervalMs = 0;
+  unsigned long requestedIgnitionOffIntervalMs = 0;
+  bool hasIgnitionOnInterval = extractJsonUnsignedLongValue(
+    payload,
+    "ignitionOnInterval",
+    requestedIgnitionOnIntervalMs
+  );
+  bool hasIgnitionOffInterval = extractJsonUnsignedLongValue(
+    payload,
+    "ignitionOffInterval",
+    requestedIgnitionOffIntervalMs
+  );
+
+  if (!hasIgnitionOnInterval || !hasIgnitionOffInterval) {
+    unsigned long legacyIntervalMs = 0;
+    if (!extractJsonUnsignedLongValue(payload, "interval", legacyIntervalMs)) {
+      Serial.println("Ignoring config_update: missing or invalid ignition intervals");
+      return;
+    }
+
+    requestedIgnitionOnIntervalMs = legacyIntervalMs;
+    requestedIgnitionOffIntervalMs = legacyIntervalMs;
+  }
+
+  if (!isValidTelemetryInterval(requestedIgnitionOnIntervalMs) ||
+      !isValidTelemetryInterval(requestedIgnitionOffIntervalMs)) {
+    Serial.println(
+      "Ignoring config_update: interval out of range (on=" +
+      String(requestedIgnitionOnIntervalMs) +
+      " ms, off=" +
+      String(requestedIgnitionOffIntervalMs) +
+      " ms)"
+    );
     return;
   }
 
-  if (requestedIntervalMs < 1000 || requestedIntervalMs > 60000) {
-    Serial.println("Ignoring config_update: interval out of range (" + String(requestedIntervalMs) + " ms)");
+  ignitionOnPollIntervalMs = requestedIgnitionOnIntervalMs;
+  ignitionOffPollIntervalMs = requestedIgnitionOffIntervalMs;
+
+  if (!saveIntervalsToNvs(ignitionOnPollIntervalMs, ignitionOffPollIntervalMs)) {
+    Serial.println("Ignoring config_update because NVS persistence failed");
     return;
   }
 
-  gps_poll_interval_ms = requestedIntervalMs;
-  Serial.println("Telemetry interval updated to " + String(gps_poll_interval_ms) + " ms");
+  Serial.println(
+    "Telemetry intervals updated to ignition ON " +
+    String(ignitionOnPollIntervalMs) +
+    " ms, ignition OFF " +
+    String(ignitionOffPollIntervalMs) +
+    " ms"
+  );
 
   String ackTopic = buildAckTopic();
-  String ackPayload = buildAckJson(gps_poll_interval_ms);
+  String ackPayload = buildAckJson(ignitionOnPollIntervalMs, ignitionOffPollIntervalMs);
   Serial.println("Publishing ACK topic: " + ackTopic);
   Serial.println("Publishing ACK payload: " + ackPayload);
   if (!publishMessage(ackTopic, ackPayload)) {
