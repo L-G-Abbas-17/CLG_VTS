@@ -83,7 +83,9 @@ const char* nvs_ignition_off_interval_key = "offInterval";
 // ----------------------
 void clearModemInput();
 String readModemUntilQuiet(unsigned long timeoutMs, unsigned long idleWindowMs = modem_idle_window_ms);
+String readModemUntilPattern(const String& pattern, unsigned long timeoutMs);
 String readATResponse(const String& cmd, unsigned long waitTime = 2000);
+String readATResponseUntil(const String& cmd, const String& pattern, unsigned long waitTime);
 void sendAT(const String& cmd, unsigned long waitTime = 2000);
 bool setupLTE();
 bool connectMQTT();
@@ -293,10 +295,48 @@ String readModemUntilQuiet(unsigned long timeoutMs, unsigned long idleWindowMs) 
   return response;
 }
 
+String readModemUntilPattern(const String& pattern, unsigned long timeoutMs) {
+  unsigned long start = millis();
+  String response = "";
+
+  while (millis() - start < timeoutMs) {
+    while (sim.available()) {
+      response += static_cast<char>(sim.read());
+    }
+
+    if (pattern.length() > 0 && response.indexOf(pattern) >= 0) {
+      break;
+    }
+
+    if (responseContainsFailure(response)) {
+      break;
+    }
+
+    delay(10);
+  }
+
+  unsigned long quietStart = millis();
+  while (millis() - quietStart < modem_idle_window_ms) {
+    while (sim.available()) {
+      response += static_cast<char>(sim.read());
+      quietStart = millis();
+    }
+    delay(10);
+  }
+
+  return response;
+}
+
 String readATResponse(const String& cmd, unsigned long waitTime) {
   clearModemInput();
   sim.println(cmd);
   return readModemUntilQuiet(waitTime);
+}
+
+String readATResponseUntil(const String& cmd, const String& pattern, unsigned long waitTime) {
+  clearModemInput();
+  sim.println(cmd);
+  return readModemUntilPattern(pattern, waitTime);
 }
 
 void sendAT(const String& cmd, unsigned long waitTime) {
@@ -399,8 +439,8 @@ void logBootConfiguration() {
 }
 
 void loadIntervalsFromNvs() {
-  if (!preferences.begin(nvs_namespace, true)) {
-    Serial.println("WARNING: Failed to open NVS for reading intervals; using defaults");
+  if (!preferences.begin(nvs_namespace, false)) {
+    Serial.println("WARNING: Failed to open NVS intervals namespace; using defaults");
     return;
   }
 
@@ -580,8 +620,9 @@ bool connectMQTT() {
   Serial.println("Telemetry Topic: " + buildTelemetryTopic());
   Serial.println("Identity Topic: " + buildIdentityTopic());
 
-  String openResponse = readATResponse(
+  String openResponse = readATResponseUntil(
     "AT+QMTOPEN=0,\"" + String(mqtt_broker) + "\"," + String(mqtt_port),
+    "+QMTOPEN:",
     mqtt_open_timeout_ms
   );
   logModemResponse("AT+QMTOPEN response", openResponse);
@@ -598,7 +639,7 @@ bool connectMQTT() {
     connectCommand += ",\"" + String(mqtt_username) + "\",\"" + String(mqtt_password) + "\"";
   }
 
-  String connectResponse = readATResponse(connectCommand, mqtt_connect_timeout_ms);
+  String connectResponse = readATResponseUntil(connectCommand, "+QMTCONN:", mqtt_connect_timeout_ms);
   logModemResponse("AT+QMTCONN response", connectResponse);
   if (!responseContainsSuccess(connectResponse, "+QMTCONN: 0,0,0")) {
     logModemResponse("MQTT connect failed", connectResponse);
@@ -610,7 +651,7 @@ bool connectMQTT() {
   Serial.println("MQTT connected");
 
   String subscribeCommand = "AT+QMTSUB=0,1,\"" + buildCommandTopic() + "\",1";
-  String subscribeResponse = readATResponse(subscribeCommand, mqtt_connect_timeout_ms);
+  String subscribeResponse = readATResponseUntil(subscribeCommand, "+QMTSUB:", mqtt_connect_timeout_ms);
   logModemResponse("AT+QMTSUB response", subscribeResponse);
   if (!responseContainsSuccess(subscribeResponse, "+QMTSUB: 0,1,0")) {
     Serial.println("MQTT subscribe failed for command topic: " + buildCommandTopic());
@@ -663,7 +704,7 @@ bool publishRawMessage(const String& topic, const String& msg) {
   sim.print(msg);
   sim.write(0x1A);
 
-  String publishResponse = readModemUntilQuiet(mqtt_publish_ack_timeout_ms);
+  String publishResponse = readModemUntilPattern("+QMTPUB:", mqtt_publish_ack_timeout_ms);
   if (!responseContainsSuccess(publishResponse, "+QMTPUB: 0,0,0")) {
     logModemResponse("MQTT publish ack failed", publishResponse);
     mqttConnected = false;
